@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
+import { FaGoogle, FaFacebook, FaLinkedin, FaTwitter, FaMicrosoft, FaApple } from 'react-icons/fa';
 
 // Extended schema with client-side validation
 const registerSchema = insertUserSchema.extend({
@@ -121,6 +123,99 @@ export default function Auth() {
     loginMutation.mutate(data);
   };
 
+  // Handle OAuth login
+  const handleOAuthLogin = (provider: string) => {
+    toast({
+      title: `Accesso con ${provider}`,
+      description: `Tentativo di accesso con ${provider}...`,
+    });
+    
+    // In futuro, qui verrebbe implementata la vera autenticazione con OAuth
+    console.log(`Login with ${provider}`);
+  };
+
+  // Component for social login buttons
+  const SocialLoginButtons = () => (
+    <div className="mt-6">
+      <div className="relative mb-4">
+        <div className="absolute inset-0 flex items-center">
+          <Separator />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-white px-2 text-slate-500">oppure continua con</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-4 gap-2 mb-2">
+        <Button 
+          type="button" 
+          variant="outline" 
+          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
+          onClick={() => handleOAuthLogin('Google')}
+        >
+          <FaGoogle className="h-5 w-5 text-red-500" />
+        </Button>
+        <Button 
+          type="button" 
+          variant="outline" 
+          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
+          onClick={() => handleOAuthLogin('Facebook')}
+        >
+          <FaFacebook className="h-5 w-5 text-blue-600" />
+        </Button>
+        <Button 
+          type="button" 
+          variant="outline" 
+          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
+          onClick={() => handleOAuthLogin('Apple')}
+        >
+          <FaApple className="h-5 w-5" />
+        </Button>
+        <Button 
+          type="button" 
+          variant="outline" 
+          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
+          onClick={() => handleOAuthLogin('Microsoft')}
+        >
+          <FaMicrosoft className="h-5 w-5 text-blue-500" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        <Button 
+          type="button" 
+          variant="outline" 
+          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
+          onClick={() => handleOAuthLogin('X')}
+        >
+          <FaTwitter className="h-5 w-5" />
+        </Button>
+        <Button 
+          type="button" 
+          variant="outline" 
+          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
+          onClick={() => handleOAuthLogin('LinkedIn')}
+        >
+          <FaLinkedin className="h-5 w-5 text-blue-700" />
+        </Button>
+        <Button 
+          type="button" 
+          variant="outline" 
+          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
+          onClick={() => handleOAuthLogin('Instagram')}
+        >
+          <FaTwitter className="h-5 w-5 text-pink-600" />
+        </Button>
+        <Button 
+          type="button" 
+          variant="outline" 
+          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
+          onClick={() => handleOAuthLogin('TikTok')}
+        >
+          <FaTwitter className="h-5 w-5" />
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <div className="w-full max-w-md">
@@ -199,6 +294,8 @@ export default function Auth() {
                   </button>
                 </p>
               </div>
+              
+              <SocialLoginButtons />
             </div>
           </TabsContent>
           
