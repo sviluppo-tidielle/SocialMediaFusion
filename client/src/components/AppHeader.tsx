@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { User } from '@shared/schema';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { X, Search, Bell, MessageSquare } from 'lucide-react';
+import { X, Search, Bell, MessageSquare, LogOut } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
 interface AppHeaderProps {
   user: Omit<User, 'password'>;
@@ -12,7 +13,9 @@ interface AppHeaderProps {
 export default function AppHeader({ user, notifications }: AppHeaderProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const { logout } = useAuth();
 
   const handleSearch = () => {
     setIsSearchOpen(true);
@@ -25,6 +28,10 @@ export default function AppHeader({ user, notifications }: AppHeaderProps) {
   const handleMessages = () => {
     // Implement message handling
     console.log('Messages clicked');
+  };
+  
+  const handleLogout = () => {
+    logout();
   };
 
   return (
@@ -62,6 +69,31 @@ export default function AppHeader({ user, notifications }: AppHeaderProps) {
         >
           <MessageSquare className="h-6 w-6" />
         </button>
+        <div className="relative">
+          <button 
+            className="w-8 h-8 rounded-full overflow-hidden border border-slate-200"
+            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+            aria-label="User menu"
+          >
+            <img 
+              src={user?.profilePicture || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=80&h=80&q=80"} 
+              alt="Your profile picture"
+              className="w-full h-full object-cover"
+            />
+          </button>
+          
+          {isUserMenuOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-slate-200">
+              <button
+                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Search Dialog */}

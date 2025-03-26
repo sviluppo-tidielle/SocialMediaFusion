@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -15,6 +16,7 @@ const CURRENT_USER_ID = 1;
 export default function Profile() {
   const { setActiveTab } = useTab();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const [activeProfileTab, setActiveProfileTab] = useState('posts');
   
   // Set the active tab when this component mounts
@@ -38,8 +40,8 @@ export default function Profile() {
   });
   
   const handleEditProfile = () => {
-    // Implement edit profile functionality
-    console.log('Edit profile');
+    // Navigate to edit profile page
+    navigate('/edit-profile');
   };
   
   const handleOpenPost = (postId: number) => {
