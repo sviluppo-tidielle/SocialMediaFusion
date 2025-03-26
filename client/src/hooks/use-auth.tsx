@@ -37,11 +37,13 @@ function useUserQuery() {
     refetchOnReconnect: true,
     queryFn: async ({ queryKey }) => {
       try {
+        console.log('Tentativo di caricamento dell\'utente dalla rotta:', queryKey[0]);
         const res = await fetch(queryKey[0] as string, {
           credentials: 'include',
         });
         
         if (res.status === 401) {
+          console.log('Utente non autenticato (401)');
           return null;
         }
         
@@ -49,7 +51,9 @@ function useUserQuery() {
           throw new Error(`Errore nel caricamento dell'utente: ${res.status}`);
         }
         
-        return await res.json();
+        const userData = await res.json();
+        console.log('Dati utente caricati:', userData);
+        return userData;
       } catch (error) {
         console.error('Errore nel caricamento dell\'utente:', error);
         return null;
@@ -64,12 +68,28 @@ function useLoginMutation(queryClient: QueryClient) {
   
   return useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest('POST', '/api/auth/login', credentials);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Errore di accesso');
+      console.log('Tentativo di login con:', credentials.username);
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(credentials),
+          credentials: 'include'
+        });
+      
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error('Errore di login:', errorData);
+          throw new Error(errorData.error || 'Errore di accesso');
+        }
+        
+        const userData = await res.json();
+        console.log('Login riuscito, dati utente:', userData);
+        return userData;
+      } catch (error) {
+        console.error('Errore durante il login:', error);
+        throw error;
       }
-      return await res.json();
     },
     onSuccess: (userData) => {
       queryClient.setQueryData(['/api/user'], userData);
@@ -95,12 +115,28 @@ function useRegisterMutation(queryClient: QueryClient) {
   
   return useMutation({
     mutationFn: async (userData: RegisterData) => {
-      const res = await apiRequest('POST', '/api/auth/register', userData);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Errore di registrazione');
+      console.log('Tentativo di registrazione con:', userData.username);
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userData),
+          credentials: 'include'
+        });
+        
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error('Errore di registrazione:', errorData);
+          throw new Error(errorData.error || 'Errore di registrazione');
+        }
+        
+        const userRegistered = await res.json();
+        console.log('Registrazione riuscita, dati utente:', userRegistered);
+        return userRegistered;
+      } catch (error) {
+        console.error('Errore durante la registrazione:', error);
+        throw error;
       }
-      return await res.json();
     },
     onSuccess: (userData) => {
       queryClient.setQueryData(['/api/user'], userData);
@@ -126,7 +162,24 @@ function useLogoutMutation(queryClient: QueryClient) {
   
   return useMutation({
     mutationFn: async () => {
-      await apiRequest('POST', '/api/auth/logout');
+      console.log('Tentativo di logout');
+      try {
+        const res = await fetch('/api/logout', {
+          method: 'POST',
+          credentials: 'include'
+        });
+        
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error('Errore durante il logout:', errorData);
+          throw new Error(errorData.error || 'Errore durante il logout');
+        }
+        
+        console.log('Logout riuscito');
+      } catch (error) {
+        console.error('Errore durante il logout:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.setQueryData(['/api/user'], null);

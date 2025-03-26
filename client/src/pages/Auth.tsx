@@ -46,10 +46,10 @@ export default function Auth() {
   
   // Query per ottenere i provider OAuth abilitati
   const { data: enabledProviders, isLoading: providersLoading } = useQuery({
-    queryKey: ['/api/auth/providers'],
+    queryKey: ['/api/oauth/providers'],
     queryFn: async () => {
       try {
-        const response = await fetch('/api/auth/providers');
+        const response = await fetch('/api/oauth/providers');
         if (!response.ok) {
           throw new Error('Errore nel caricamento dei provider OAuth');
         }
@@ -109,28 +109,28 @@ export default function Auth() {
     
     switch(provider.toLowerCase()) {
       case 'google':
-        providerPath = '/api/auth/google';
+        providerPath = '/api/oauth/google';
         break;
       case 'facebook':
-        providerPath = '/api/auth/facebook';
+        providerPath = '/api/oauth/facebook';
         break;
       case 'apple':
-        providerPath = '/api/auth/apple';
+        providerPath = '/api/oauth/apple';
         break;
       case 'microsoft':
-        providerPath = '/api/auth/microsoft';
+        providerPath = '/api/oauth/microsoft';
         break;
       case 'x':
-        providerPath = '/api/auth/x';
+        providerPath = '/api/oauth/x';
         break;
       case 'linkedin':
-        providerPath = '/api/auth/linkedin';
+        providerPath = '/api/oauth/linkedin';
         break;
       case 'instagram':
-        providerPath = '/api/auth/instagram';
+        providerPath = '/api/oauth/instagram';
         break;
       case 'tiktok':
-        providerPath = '/api/auth/tiktok';
+        providerPath = '/api/oauth/tiktok';
         break;
       default:
         console.error(`Provider ${provider} non supportato`);

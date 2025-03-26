@@ -8,9 +8,15 @@ import {
   type Notification, type InsertNotification,
   type UserWithProfile, type PostWithUser, type VideoWithUser, type StoryWithUser
 } from "@shared/schema";
+import session from "express-session";
+import createMemoryStore from "memorystore";
+
+const MemoryStore = createMemoryStore(session);
 
 // Storage interface
 export interface IStorage {
+  // Sessione per l'autenticazione
+  sessionStore: session.Store;
   // User operations
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -82,6 +88,8 @@ export class MemStorage implements IStorage {
   private followId: number;
   private likeId: number;
   private notificationId: number;
+  
+  public sessionStore: session.Store;
 
   constructor() {
     this.usersMap = new Map();
@@ -103,6 +111,11 @@ export class MemStorage implements IStorage {
     this.followId = 1;
     this.likeId = 1;
     this.notificationId = 1;
+    
+    // Inizializza il sessionStore
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000 // 24 ore in millisecondi
+    });
     
     // Initialize with sample data
     this.initializeSampleData();

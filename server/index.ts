@@ -4,6 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import passport from "passport";
 import session from "express-session";
 import { randomBytes } from "crypto";
+import { storage } from "./storage";
 
 const app = express();
 app.use(express.json());
@@ -18,7 +19,8 @@ app.use(session({
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     maxAge: 24 * 60 * 60 * 1000 // 24 ore
-  }
+  },
+  store: storage.sessionStore
 }));
 
 // Inizializzazione di Passport
@@ -85,10 +87,13 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    console.log("Setting up Vite in development mode");
     await setupVite(app, server);
   } else {
+    console.log("Setting up static file serving for production");
     serveStatic(app);
   }
+  console.log("Environment:", app.get("env"));
 
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.

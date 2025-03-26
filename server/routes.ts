@@ -19,11 +19,15 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { setupOAuthStrategies } from "./oauth-strategies";
 import { setupOAuthRoutes } from "./oauth-routes";
+import { setupAuth } from "./auth";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Inizializza l'autenticazione con Passport e le rotte correlate
+  setupAuth(app);
+  
   // Initialize OAuth strategies
   setupOAuthStrategies();
   
@@ -41,49 +45,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.status(500).json({ error: "Internal server error" });
   };
 
-  // Auth routes
-  app.post("/api/auth/register", async (req: Request, res: Response) => {
-    try {
-      const userData = insertUserSchema.parse(req.body);
-      
-      // Check if username is taken
-      const existingUser = await storage.getUserByUsername(userData.username);
-      if (existingUser) {
-        return res.status(400).json({ error: "Username already taken" });
-      }
-      
-      const user = await storage.createUser(userData);
-      
-      // Remove password from response
-      const { password, ...userWithoutPassword } = user;
-      
-      res.status(201).json(userWithoutPassword);
-    } catch (err) {
-      handleZodError(err, res);
-    }
-  });
-  
-  app.post("/api/auth/login", async (req: Request, res: Response) => {
-    try {
-      const credentials = z.object({
-        username: z.string(),
-        password: z.string()
-      }).parse(req.body);
-      
-      const user = await storage.getUserByUsername(credentials.username);
-      
-      if (!user || user.password !== credentials.password) {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-      
-      // Remove password from response
-      const { password, ...userWithoutPassword } = user;
-      
-      res.json(userWithoutPassword);
-    } catch (err) {
-      handleZodError(err, res);
-    }
-  });
+  // Le rotte di autenticazione sono ora gestite in server/auth.ts
 
   // User routes
   app.get("/api/users/:id", async (req: Request, res: Response) => {
