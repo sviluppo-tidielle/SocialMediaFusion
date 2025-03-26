@@ -6,7 +6,8 @@ import {
   type Video, type InsertVideo, type Comment, type InsertComment,
   type Follow, type InsertFollow, type Like, type InsertLike,
   type Notification, type InsertNotification,
-  type UserWithProfile, type PostWithUser, type VideoWithUser, type StoryWithUser
+  type UserWithProfile, type PostWithUser, type VideoWithUser, type StoryWithUser,
+  type UpdateUserProfile
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -21,6 +22,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserProfile(userId: number, profileData: UpdateUserProfile): Promise<User>;
   getUserWithProfile(id: number, currentUserId?: number): Promise<UserWithProfile | undefined>;
   searchUsers(query: string, limit?: number): Promise<UserWithProfile[]>;
   

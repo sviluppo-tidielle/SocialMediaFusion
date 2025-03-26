@@ -12,6 +12,14 @@ export const users = pgTable("users", {
   bio: text("bio"),
   profilePicture: text("profile_picture"),
   website: text("website"),
+  location: text("location"), // Città o paese
+  occupation: text("occupation"), // Professione
+  education: text("education"), // Istituto di istruzione
+  birthdate: text("birthdate"), // Data di nascita
+  interests: jsonb("interests").$type<string[]>(), // Interessi come array di stringhe
+  skills: jsonb("skills").$type<string[]>(), // Competenze come array di stringhe
+  languages: jsonb("languages").$type<string[]>(), // Lingue parlate
+  connectionPreferences: jsonb("connection_preferences").$type<string[]>(), // Preferenze per i tipi di connessioni
   followerCount: integer("follower_count").default(0),
   followingCount: integer("following_count").default(0),
   postCount: integer("post_count").default(0),
@@ -111,9 +119,35 @@ export const insertLikeSchema = createInsertSchema(likes).omit({ id: true, creat
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, read: true });
 export const insertStoryViewSchema = createInsertSchema(storyViews).omit({ id: true, viewedAt: true });
 
+// Aggiorno lo schema per l'aggiornamento profilo, omettendo i campi immutabili come username, password, ecc.
+export const updateUserProfileSchema = createInsertSchema(users)
+  .omit({
+    id: true,
+    username: true,
+    password: true,
+    email: true, 
+    fullName: true,
+    followerCount: true,
+    followingCount: true,
+    postCount: true
+  })
+  .extend({
+    bio: z.string().nullable().optional(),
+    website: z.string().nullable().optional(),
+    location: z.string().nullable().optional(),
+    occupation: z.string().nullable().optional(),
+    education: z.string().nullable().optional(),
+    birthdate: z.string().nullable().optional(),
+    interests: z.array(z.string()).nullable().optional(),
+    skills: z.array(z.string()).nullable().optional(),
+    languages: z.array(z.string()).nullable().optional(),
+    connectionPreferences: z.array(z.string()).nullable().optional(),
+  });
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
 
 export type Post = typeof posts.$inferSelect;
 export type InsertPost = z.infer<typeof insertPostSchema>;
