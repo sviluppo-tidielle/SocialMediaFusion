@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { useMutation } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
-import { User, insertUserSchema } from '@shared/schema';
+import { useQuery } from '@tanstack/react-query';
+import { insertUserSchema } from '@shared/schema';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -13,6 +12,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { FaGoogle, FaFacebook, FaLinkedin, FaTwitter, FaMicrosoft, FaApple } from 'react-icons/fa';
+import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
 // Extended schema with client-side validation
 const registerSchema = insertUserSchema.extend({
@@ -34,6 +35,32 @@ export default function Auth() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<string>('login');
+  const { loginMutation, registerMutation, isAuthenticated, user } = useAuth();
+  
+  // Se l'utente è già autenticato, reindirizza alla home
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      navigate('/');
+    }
+  }, [isAuthenticated, user, navigate]);
+  
+  // Query per ottenere i provider OAuth abilitati
+  const { data: enabledProviders, isLoading: providersLoading } = useQuery({
+    queryKey: ['/api/auth/providers'],
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/auth/providers');
+        if (!response.ok) {
+          throw new Error('Errore nel caricamento dei provider OAuth');
+        }
+        const data = await response.json();
+        return data.providers as string[];
+      } catch (error) {
+        console.error('Errore nel caricamento dei provider:', error);
+        return [];
+      }
+    },
+  });
 
   // Registration form
   const registerForm = useForm<RegisterFormValues>({
@@ -59,59 +86,6 @@ export default function Auth() {
     },
   });
 
-  // Register mutation
-  const registerMutation = useMutation({
-    mutationFn: async (userData: Omit<RegisterFormValues, 'confirmPassword'>) => {
-      const { confirmPassword, ...userDataToSubmit } = userData as any;
-      return await apiRequest('POST', '/api/auth/register', userDataToSubmit);
-    },
-    onSuccess: (data: Omit<User, 'password'>) => {
-      toast({
-        title: 'Registrazione completata!',
-        description: 'Il tuo account è stato creato con successo.',
-      });
-      
-      // Store user in local storage
-      localStorage.setItem('currentUser', JSON.stringify(data));
-      
-      // Redirect to feed
-      navigate('/');
-    },
-    onError: (error) => {
-      toast({
-        title: 'Errore durante la registrazione',
-        description: String(error),
-        variant: 'destructive',
-      });
-    }
-  });
-
-  // Login mutation
-  const loginMutation = useMutation({
-    mutationFn: async (credentials: LoginFormValues) => {
-      return await apiRequest('POST', '/api/auth/login', credentials);
-    },
-    onSuccess: (data: Omit<User, 'password'>) => {
-      toast({
-        title: 'Login effettuato!',
-        description: 'Bentornato ' + data.fullName,
-      });
-      
-      // Store user in local storage
-      localStorage.setItem('currentUser', JSON.stringify(data));
-      
-      // Redirect to feed
-      navigate('/');
-    },
-    onError: (error) => {
-      toast({
-        title: 'Errore durante il login',
-        description: String(error),
-        variant: 'destructive',
-      });
-    }
-  });
-
   // Handle register form submission
   const onRegisterSubmit = (data: RegisterFormValues) => {
     const { confirmPassword, ...userDataToSubmit } = data;
@@ -127,94 +101,113 @@ export default function Auth() {
   const handleOAuthLogin = (provider: string) => {
     toast({
       title: `Accesso con ${provider}`,
-      description: `Tentativo di accesso con ${provider}...`,
+      description: `Reindirizzamento al provider ${provider}...`,
     });
     
-    // In futuro, qui verrebbe implementata la vera autenticazione con OAuth
-    console.log(`Login with ${provider}`);
+    // Redirect to OAuth provider
+    let providerPath = '';
+    
+    switch(provider.toLowerCase()) {
+      case 'google':
+        providerPath = '/api/auth/google';
+        break;
+      case 'facebook':
+        providerPath = '/api/auth/facebook';
+        break;
+      case 'apple':
+        providerPath = '/api/auth/apple';
+        break;
+      case 'microsoft':
+        providerPath = '/api/auth/microsoft';
+        break;
+      case 'x':
+        providerPath = '/api/auth/x';
+        break;
+      case 'linkedin':
+        providerPath = '/api/auth/linkedin';
+        break;
+      case 'instagram':
+        providerPath = '/api/auth/instagram';
+        break;
+      case 'tiktok':
+        providerPath = '/api/auth/tiktok';
+        break;
+      default:
+        console.error(`Provider ${provider} non supportato`);
+        toast({
+          title: `Errore`,
+          description: `Provider ${provider} non supportato`,
+          variant: 'destructive',
+        });
+        return;
+    }
+    
+    // Inizia il processo di autenticazione OAuth reindirizzando alla route del provider
+    window.location.href = providerPath;
   };
 
+  // Helpers per ottenere l'icona e il colore per ogni provider OAuth
+  const getProviderIcon = (provider: string) => {
+    switch(provider.toLowerCase()) {
+      case 'google':
+        return <FaGoogle className="h-5 w-5 text-red-500" />;
+      case 'facebook':
+        return <FaFacebook className="h-5 w-5 text-blue-600" />;
+      case 'apple':
+        return <FaApple className="h-5 w-5" />;
+      case 'microsoft':
+        return <FaMicrosoft className="h-5 w-5 text-blue-500" />;
+      case 'x':
+      case 'twitter':
+        return <FaTwitter className="h-5 w-5" />;
+      case 'linkedin':
+        return <FaLinkedin className="h-5 w-5 text-blue-700" />;
+      default:
+        return <FaTwitter className="h-5 w-5" />;
+    }
+  };
+  
   // Component for social login buttons
-  const SocialLoginButtons = () => (
-    <div className="mt-6">
-      <div className="relative mb-4">
-        <div className="absolute inset-0 flex items-center">
-          <Separator />
+  const SocialLoginButtons = () => {
+    if (providersLoading) {
+      return (
+        <div className="mt-6 py-4 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-white px-2 text-slate-500">oppure continua con</span>
+      );
+    }
+    
+    if (!enabledProviders || enabledProviders.length === 0) {
+      return null; // Non mostrare nulla se non ci sono provider abilitati
+    }
+    
+    return (
+      <div className="mt-6">
+        <div className="relative mb-4">
+          <div className="absolute inset-0 flex items-center">
+            <Separator />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-white px-2 text-slate-500">oppure continua con</span>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {enabledProviders.map((provider) => (
+            <Button 
+              key={provider}
+              type="button" 
+              variant="outline" 
+              className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
+              onClick={() => handleOAuthLogin(provider)}
+            >
+              {getProviderIcon(provider)}
+            </Button>
+          ))}
         </div>
       </div>
-      <div className="grid grid-cols-4 gap-2 mb-2">
-        <Button 
-          type="button" 
-          variant="outline" 
-          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
-          onClick={() => handleOAuthLogin('Google')}
-        >
-          <FaGoogle className="h-5 w-5 text-red-500" />
-        </Button>
-        <Button 
-          type="button" 
-          variant="outline" 
-          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
-          onClick={() => handleOAuthLogin('Facebook')}
-        >
-          <FaFacebook className="h-5 w-5 text-blue-600" />
-        </Button>
-        <Button 
-          type="button" 
-          variant="outline" 
-          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
-          onClick={() => handleOAuthLogin('Apple')}
-        >
-          <FaApple className="h-5 w-5" />
-        </Button>
-        <Button 
-          type="button" 
-          variant="outline" 
-          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
-          onClick={() => handleOAuthLogin('Microsoft')}
-        >
-          <FaMicrosoft className="h-5 w-5 text-blue-500" />
-        </Button>
-      </div>
-      <div className="grid grid-cols-4 gap-2">
-        <Button 
-          type="button" 
-          variant="outline" 
-          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
-          onClick={() => handleOAuthLogin('X')}
-        >
-          <FaTwitter className="h-5 w-5" />
-        </Button>
-        <Button 
-          type="button" 
-          variant="outline" 
-          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
-          onClick={() => handleOAuthLogin('LinkedIn')}
-        >
-          <FaLinkedin className="h-5 w-5 text-blue-700" />
-        </Button>
-        <Button 
-          type="button" 
-          variant="outline" 
-          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
-          onClick={() => handleOAuthLogin('Instagram')}
-        >
-          <FaTwitter className="h-5 w-5 text-pink-600" />
-        </Button>
-        <Button 
-          type="button" 
-          variant="outline" 
-          className="flex justify-center items-center h-10 bg-white hover:bg-slate-50"
-          onClick={() => handleOAuthLogin('TikTok')}
-        >
-          <FaTwitter className="h-5 w-5" />
-        </Button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">

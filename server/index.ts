@@ -1,10 +1,44 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import passport from "passport";
+import session from "express-session";
+import { randomBytes } from "crypto";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Configurazione della sessione per l'autenticazione
+const SESSION_SECRET = process.env.SESSION_SECRET || randomBytes(32).toString('hex');
+app.use(session({
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 ore
+  }
+}));
+
+// Inizializzazione di Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Serializzazione e deserializzazione dell'utente
+passport.serializeUser((user: any, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser(async (id: number, done) => {
+  try {
+    const { storage } = await import('./storage');
+    const user = await storage.getUser(id);
+    done(null, user);
+  } catch (error) {
+    done(error, null);
+  }
+});
 
 app.use((req, res, next) => {
   const start = Date.now();

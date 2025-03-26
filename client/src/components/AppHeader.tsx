@@ -15,7 +15,7 @@ export default function AppHeader({ user, notifications }: AppHeaderProps) {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { logout } = useAuth();
+  const { logoutMutation } = useAuth();
 
   const handleSearch = () => {
     setIsSearchOpen(true);
@@ -31,7 +31,8 @@ export default function AppHeader({ user, notifications }: AppHeaderProps) {
   };
   
   const handleLogout = () => {
-    logout();
+    logoutMutation.mutate();
+    setIsUserMenuOpen(false);
   };
 
   return (

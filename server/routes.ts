@@ -17,11 +17,19 @@ import { fromZodError } from "zod-validation-error";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import { setupOAuthStrategies } from "./oauth-strategies";
+import { setupOAuthRoutes } from "./oauth-routes";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize OAuth strategies
+  setupOAuthStrategies();
+  
+  // Configure OAuth routes
+  setupOAuthRoutes(app);
+
   // Error handler middleware
   const handleZodError = (err: unknown, res: Response) => {
     if (err instanceof ZodError) {
