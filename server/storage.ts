@@ -200,6 +200,33 @@ export class MemStorage implements IStorage {
     return user;
   }
   
+  async updateUserProfile(userId: number, profileData: UpdateUserProfile): Promise<User> {
+    const existingUser = await this.getUser(userId);
+    if (!existingUser) {
+      throw new Error("Utente non trovato");
+    }
+    
+    // Aggiorna solo i campi forniti, mantiene i dati esistenti per gli altri campi
+    const updatedUser: User = {
+      ...existingUser,
+      bio: profileData.bio ?? existingUser.bio,
+      website: profileData.website ?? existingUser.website,
+      location: profileData.location ?? existingUser.location,
+      occupation: profileData.occupation ?? existingUser.occupation,
+      education: profileData.education ?? existingUser.education,
+      birthdate: profileData.birthdate ?? existingUser.birthdate,
+      interests: profileData.interests ?? existingUser.interests,
+      skills: profileData.skills ?? existingUser.skills,
+      languages: profileData.languages ?? existingUser.languages,
+      connectionPreferences: profileData.connectionPreferences ?? existingUser.connectionPreferences
+    };
+    
+    // Salva l'utente aggiornato
+    this.usersMap.set(userId, updatedUser);
+    
+    return updatedUser;
+  }
+  
   async getUserWithProfile(id: number, currentUserId?: number): Promise<UserWithProfile | undefined> {
     const user = await this.getUser(id);
     if (!user) return undefined;
@@ -728,19 +755,111 @@ export class MemStorage implements IStorage {
   }
 
   async getSuggestedUsers(userId: number, limit: number = 5): Promise<UserWithProfile[]> {
-    // Get users being followed
+    // Ottiene informazioni sull'utente corrente
+    const currentUser = await this.getUser(userId);
+    if (!currentUser) return [];
+    
+    // Ottiene gli utenti già seguiti
     const following = await this.getFollowing(userId);
     const followingIds = following.map(user => user.id);
     
-    // Get users not being followed (excluding self)
-    const suggestedUsers = Array.from(this.usersMap.values())
-      .filter(user => user.id !== userId && !followingIds.includes(user.id))
-      .slice(0, limit);
+    // Ottiene tutti gli utenti che non sono già seguiti (escludendo se stesso)
+    const potentialSuggestions = Array.from(this.usersMap.values())
+      .filter(user => user.id !== userId && !followingIds.includes(user.id));
     
-    return suggestedUsers.map(user => ({
-      ...user,
-      isFollowing: false
+    // Funzione per calcolare un punteggio di affinità tra utenti
+    const calculateAffinityScore = (user: User): number => {
+      let score = 0;
+      
+      // Punteggio per località corrispondente
+      if (currentUser.location && user.location && 
+          currentUser.location.toLowerCase() === user.location.toLowerCase()) {
+        score += 5;
+      }
+      
+      // Punteggio per stesso ambito educativo
+      if (currentUser.education && user.education && 
+          currentUser.education.toLowerCase() === user.education.toLowerCase()) {
+        score += 4;
+      }
+      
+      // Punteggio per stessa occupazione/professione
+      if (currentUser.occupation && user.occupation && 
+          currentUser.occupation.toLowerCase() === user.occupation.toLowerCase()) {
+        score += 3;
+      }
+      
+      // Punteggio per interessi comuni
+      if (currentUser.interests && user.interests) {
+        const commonInterests = currentUser.interests.filter(interest => 
+          user.interests?.includes(interest)
+        );
+        score += commonInterests.length * 2;
+      }
+      
+      // Punteggio per abilità comuni
+      if (currentUser.skills && user.skills) {
+        const commonSkills = currentUser.skills.filter(skill => 
+          user.skills?.includes(skill)
+        );
+        score += commonSkills.length;
+      }
+      
+      // Punteggio per lingue comuni
+      if (currentUser.languages && user.languages) {
+        const commonLanguages = currentUser.languages.filter(language => 
+          user.languages?.includes(language)
+        );
+        score += commonLanguages.length;
+      }
+      
+      // Se l'utente ha specificato preferenze di connessione, considerale
+      if (currentUser.connectionPreferences && currentUser.connectionPreferences.length > 0) {
+        if (currentUser.connectionPreferences.includes('location') && 
+            currentUser.location === user.location) {
+          score += 3;
+        }
+        
+        if (currentUser.connectionPreferences.includes('education') && 
+            currentUser.education === user.education) {
+          score += 3;
+        }
+        
+        if (currentUser.connectionPreferences.includes('professional') && 
+            currentUser.occupation === user.occupation) {
+          score += 3;
+        }
+        
+        if (currentUser.connectionPreferences.includes('interests') && 
+            currentUser.interests && user.interests) {
+          const hasCommonInterests = currentUser.interests.some(interest => 
+            user.interests?.includes(interest)
+          );
+          if (hasCommonInterests) score += 3;
+        }
+      }
+      
+      return score;
+    };
+    
+    // Calcola il punteggio per ciascun utente e ordina in base al punteggio
+    const scoredSuggestions = potentialSuggestions.map(user => ({
+      user,
+      score: calculateAffinityScore(user)
     }));
+    
+    // Ordina per punteggio (dal più alto al più basso)
+    scoredSuggestions.sort((a, b) => b.score - a.score);
+    
+    // Seleziona i top N utenti
+    const suggestedUsers = scoredSuggestions
+      .slice(0, limit)
+      .map(item => ({
+        ...item.user,
+        isFollowing: false
+      }));
+    
+    return suggestedUsers;
   }
 
   // Notification operations

@@ -10,7 +10,8 @@ import {
   insertCommentSchema,
   insertLikeSchema,
   insertFollowSchema,
-  insertStoryViewSchema
+  insertStoryViewSchema,
+  updateUserProfileSchema
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
@@ -145,6 +146,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const suggestedWithoutPasswords = suggestedUsers.map(({ password, ...user }) => user);
       
       res.json(suggestedWithoutPasswords);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  // Endpoint per aggiornare il profilo utente con nuove informazioni
+  app.put("/api/users/:id/profile", async (req: Request, res: Response) => {
+    try {
+      // Verifica che l'utente sia autenticato e stia modificando il proprio profilo
+      const userId = parseInt(req.params.id);
+      
+      if (!req.isAuthenticated() || (req.user && req.user.id !== userId)) {
+        return res.status(403).json({ error: "Non sei autorizzato a modificare questo profilo" });
+      }
+      
+      // Valida i dati del profilo
+      const profileData = updateUserProfileSchema.parse(req.body);
+      
+      // Aggiorna il profilo
+      const updatedUser = await storage.updateUserProfile(userId, profileData);
+      
+      // Rimuovi la password dalla risposta
+      const { password, ...userWithoutPassword } = updatedUser;
+      
+      res.json(userWithoutPassword);
     } catch (err) {
       handleZodError(err, res);
     }
