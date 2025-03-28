@@ -1,9 +1,13 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Camera, Video, Image, Mic, X, RotateCcw } from 'lucide-react';
+import { 
+  Camera, Video, Image, Mic, X, RotateCcw, 
+  CameraOff, Sparkles, Upload, Music, ArrowLeft,
+  FlipHorizontal, CircleSlash
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export interface MediaFile {

@@ -9,7 +9,7 @@ import {
   Loader2, Image, X, Camera, Video, Mic, 
   Upload, Music, Smile, MapPin, Tag, Sparkles 
 } from 'lucide-react';
-import MediaCapture, { MediaFile } from './MediaCapture';
+import MediaCaptureModern, { MediaFile } from './MediaCaptureModern';
 import {
   Dialog,
   DialogContent,
@@ -340,7 +340,7 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
       </Dialog>
       
       {showMediaCapture && (
-        <MediaCapture
+        <MediaCaptureModern
           onCapture={handleMediaCapture}
           onClose={() => setShowMediaCapture(false)}
           allowedTypes={captureType}
