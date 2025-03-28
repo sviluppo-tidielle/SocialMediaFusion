@@ -4,10 +4,37 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { PostWithUser } from '@shared/schema';
 import { useTab } from '@/hooks/use-tab';
-import { Heart, MessageCircle, Send, Radio } from 'lucide-react';
+import { 
+  Heart, 
+  MessageCircle, 
+  Send, 
+  Radio, 
+  Lock, 
+  User, 
+  LayoutDashboard, 
+  Settings, 
+  Bell, 
+  Calendar, 
+  Bookmark, 
+  HelpCircle,
+  X,
+  Users,
+  Home,
+  BellRing,
+  Video,
+  MessageSquare,
+  FileText,
+  Mail,
+  PlusCircle,
+  Search,
+  Clock,
+  Compass
+} from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
+import { useAuth } from '@/hooks/use-auth';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +53,156 @@ import ShareModal from '@/components/ShareModal';
 // Mock current user id until auth is implemented
 const CURRENT_USER_ID = 1;
 
+// Componente per la visualizzazione dettagliata di un post
+function PostDetailView({ post, onClose }: { post: PostWithUser, onClose: () => void }) {
+  const { toast } = useToast();
+  const formatTimestamp = (date: Date | null) => {
+    if (!date) return 'Unknown date';
+    
+    return new Date(date).toLocaleString('it-IT', { 
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto">
+      <div className="flex justify-between items-center p-4 border-b">
+        <div className="flex items-center">
+          <img 
+            src={post.user.profilePicture || `https://ui-avatars.com/api/?name=${post.user.username}`} 
+            alt={`${post.user.username}'s avatar`} 
+            className="w-10 h-10 rounded-full mr-3 object-cover"
+          />
+          <div>
+            <h3 className="font-medium">{post.user.fullName}</h3>
+            <p className="text-xs text-slate-500">{formatTimestamp(post.createdAt)}</p>
+          </div>
+        </div>
+        <DialogClose asChild>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
+        </DialogClose>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-h-[70vh] bg-slate-100">
+          <img 
+            src={post.mediaUrl} 
+            alt="Post image" 
+            className="w-full h-full object-contain"
+          />
+        </div>
+        
+        {post.caption && (
+          <div className="p-4 border-b">
+            <p className="text-sm">{post.caption}</p>
+          </div>
+        )}
+        
+        <div className="p-4 flex items-center justify-between border-b">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <Heart className={`h-5 w-5 ${post.isLiked ? 'text-primary fill-primary' : 'text-slate-600'}`} />
+              <span className="text-sm">{post.likeCount || 0} Mi piace</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <MessageCircle className="h-5 w-5 text-slate-600" />
+              <span className="text-sm">{post.commentCount || 0} Commenti</span>
+            </div>
+          </div>
+          <Send className="h-5 w-5 text-slate-600" />
+        </div>
+        
+        <div className="p-4">
+          <h4 className="font-medium mb-2">Commenti</h4>
+          <p className="text-sm text-slate-500">Commenti in arrivo presto!</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Componente per la barra di contatti a sinistra
+function ContactsSidebar() {
+  const dummyContacts = [
+    { id: 1, name: "Marco Rossi", online: true },
+    { id: 2, name: "Giulia Bianchi", online: true },
+    { id: 3, name: "Luca Verdi", online: false },
+    { id: 4, name: "Sofia Russo", online: true },
+    { id: 5, name: "Alessandro Romano", online: false },
+  ];
+
+  return (
+    <div className="w-full h-full bg-white p-4 rounded-lg shadow-sm">
+      <h3 className="font-bold text-lg mb-4">Contatti</h3>
+      <div className="space-y-2">
+        {dummyContacts.map((contact) => (
+          <div key={contact.id} className="flex items-center p-2 hover:bg-slate-50 rounded-md cursor-pointer">
+            <div className="relative">
+              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500">
+                <User className="h-4 w-4" />
+              </div>
+              {contact.online && (
+                <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white"></div>
+              )}
+            </div>
+            <span className="ml-2 text-sm">{contact.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Componente per la barra di applicazioni a destra
+function AppsSidebar() {
+  const appItems = [
+    { id: 1, name: "Dashboard", icon: LayoutDashboard },
+    { id: 2, name: "Notifiche", icon: Bell },
+    { id: 3, name: "Eventi", icon: Calendar },
+    { id: 4, name: "Salvati", icon: Bookmark },
+    { id: 5, name: "Impostazioni", icon: Settings },
+  ];
+
+  return (
+    <div className="w-full h-full bg-white p-4 rounded-lg shadow-sm">
+      <h3 className="font-bold text-lg mb-4">App e Utilità</h3>
+      <div className="space-y-3">
+        {appItems.map((app) => {
+          const IconComponent = app.icon;
+          return (
+            <div key={app.id} className="flex items-center p-2 hover:bg-slate-50 rounded-md cursor-pointer">
+              <div className="w-8 h-8 rounded-md bg-blue-100 flex items-center justify-center text-blue-600">
+                <IconComponent className="h-4 w-4" />
+              </div>
+              <span className="ml-2 text-sm">{app.name}</span>
+            </div>
+          );
+        })}
+      </div>
+      
+      <div className="mt-6">
+        <h4 className="font-medium text-sm mb-3">Notizie Recenti</h4>
+        <div className="space-y-3">
+          <div className="p-2 bg-slate-50 rounded-md">
+            <p className="text-xs font-medium">Nuova funzionalità streaming video in arrivo!</p>
+            <p className="text-xs text-slate-500 mt-1">2 ore fa</p>
+          </div>
+          <div className="p-2 bg-slate-50 rounded-md">
+            <p className="text-xs font-medium">Scopri come utilizzare i nuovi filtri per le foto</p>
+            <p className="text-xs text-slate-500 mt-1">1 giorno fa</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Feed() {
   const { setActiveTab } = useTab();
   const queryClient = useQueryClient();
@@ -35,6 +212,8 @@ export default function Feed() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [postDetailOpen, setPostDetailOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<PostWithUser | null>(null);
   
   // Set the active tab when this component mounts
   useEffect(() => {
@@ -103,6 +282,11 @@ export default function Feed() {
     }
   };
   
+  const openPostDetail = (post: PostWithUser) => {
+    setSelectedPost(post);
+    setPostDetailOpen(true);
+  };
+  
   if (isLoading) {
     return <PostFeedSkeleton />;
   }
@@ -116,32 +300,52 @@ export default function Feed() {
   }
 
   return (
-    <div className="relative">
-      <div className="post-feed overflow-y-auto pb-16" id="feedContent">
-        {posts && posts.length > 0 ? (
-          posts.map((post) => (
-            <PostItem 
-              key={post.id} 
-              post={post} 
-              onLike={handleLikePost}
-              onComment={handleCommentPost}
-              onShare={handleSharePost}
-              onOptions={handleOptionsMenu}
-              onEdit={() => {
-                setSelectedPostId(post.id);
-                setEditModalOpen(true);
-              }}
-              onDelete={() => {
-                setSelectedPostId(post.id);
-                setDeleteDialogOpen(true);
-              }}
-            />
-          ))
-        ) : (
-          <div className="p-8 text-center">
-            <p className="text-slate-500">Non ci sono ancora post. Segui altri utenti per vedere i loro contenuti.</p>
+    <div className="min-h-screen bg-slate-50">
+      <div className="container mx-auto py-4 px-0 md:px-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+          {/* Sidebar per contatti (visibile solo su desktop) */}
+          <div className="hidden md:block md:col-span-3 lg:col-span-2 sticky top-4 self-start">
+            <ContactsSidebar />
           </div>
-        )}
+          
+          {/* Feed centrale */}
+          <div className="col-span-1 md:col-span-6 lg:col-span-8">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="post-feed overflow-y-auto pb-16" id="feedContent">
+                {posts && posts.length > 0 ? (
+                  posts.map((post) => (
+                    <PostItem 
+                      key={post.id} 
+                      post={post} 
+                      onLike={handleLikePost}
+                      onComment={handleCommentPost}
+                      onShare={handleSharePost}
+                      onOptions={handleOptionsMenu}
+                      onEdit={() => {
+                        setSelectedPostId(post.id);
+                        setEditModalOpen(true);
+                      }}
+                      onDelete={() => {
+                        setSelectedPostId(post.id);
+                        setDeleteDialogOpen(true);
+                      }}
+                      onClick={() => openPostDetail(post)}
+                    />
+                  ))
+                ) : (
+                  <div className="p-8 text-center">
+                    <p className="text-slate-500">Non ci sono ancora post. Segui altri utenti per vedere i loro contenuti.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Sidebar per app e utilità (visibile solo su desktop) */}
+          <div className="hidden md:block md:col-span-3 lg:col-span-2 sticky top-4 self-start">
+            <AppsSidebar />
+          </div>
+        </div>
       </div>
 
       {/* Live streaming button */}
@@ -203,6 +407,18 @@ export default function Feed() {
           onClose={() => setShareModalOpen(false)}
         />
       )}
+      
+      {/* Post detail dialog */}
+      <Dialog open={postDetailOpen} onOpenChange={setPostDetailOpen}>
+        <DialogContent className="max-w-4xl h-[90vh] p-0">
+          {selectedPost && (
+            <PostDetailView 
+              post={selectedPost} 
+              onClose={() => setPostDetailOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -215,9 +431,10 @@ interface PostItemProps {
   onOptions: (postId: number) => void;
   onEdit: (postId: number) => void;
   onDelete: (postId: number) => void;
+  onClick: () => void;
 }
 
-function PostItem({ post, onLike, onComment, onShare, onOptions, onEdit, onDelete }: PostItemProps) {
+function PostItem({ post, onLike, onComment, onShare, onOptions, onEdit, onDelete, onClick }: PostItemProps) {
   const { toast } = useToast();
   const formatTimestamp = (date: Date | null) => {
     if (!date) return 'Unknown date';
@@ -237,7 +454,7 @@ function PostItem({ post, onLike, onComment, onShare, onOptions, onEdit, onDelet
   };
   
   return (
-    <article className="border-b border-slate-200 pb-3 mb-3">
+    <article className="border-b border-slate-200 pb-3 mb-3 hover:bg-slate-50 transition-colors">
       {/* Post Header */}
       <div className="flex items-center px-4 py-2">
         <div className="w-10 h-10 rounded-full overflow-hidden mr-3">
@@ -248,7 +465,15 @@ function PostItem({ post, onLike, onComment, onShare, onOptions, onEdit, onDelet
           />
         </div>
         <div className="flex-1">
-          <h3 className="font-medium text-sm">{post.user.fullName}</h3>
+          <div className="flex items-center">
+            <h3 className="font-medium text-sm">{post.user.fullName}</h3>
+            {post.isPublic === false && (
+              <div className="ml-2 text-xs text-slate-500 flex items-center">
+                <Lock className="h-3 w-3 mr-1" />
+                <span>Privato</span>
+              </div>
+            )}
+          </div>
           <p className="text-xs text-slate-500">{formatTimestamp(post.createdAt)}</p>
         </div>
         <PostOptionsMenu
@@ -268,10 +493,7 @@ function PostItem({ post, onLike, onComment, onShare, onOptions, onEdit, onDelet
       </div>
       
       {/* Post Content */}
-      <div className="mb-2">
-        {post.caption && (
-          <p className="px-4 mb-2 text-sm">{post.caption}</p>
-        )}
+      <div className="mb-2 cursor-pointer" onClick={onClick}>
         <div className="w-full aspect-square bg-slate-100">
           <img 
             src={post.mediaUrl} 
@@ -279,6 +501,11 @@ function PostItem({ post, onLike, onComment, onShare, onOptions, onEdit, onDelet
             className="w-full h-full object-cover"
           />
         </div>
+        
+        {/* Caption sotto l'immagine */}
+        {post.caption && (
+          <p className="px-4 mt-2 mb-1 text-sm">{post.caption}</p>
+        )}
       </div>
       
       {/* Post Actions */}
