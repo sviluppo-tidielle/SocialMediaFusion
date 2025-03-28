@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
@@ -21,6 +21,7 @@ import { fileURLToPath } from "url";
 import { setupOAuthStrategies } from "./oauth-strategies";
 import { setupOAuthRoutes } from "./oauth-routes";
 import { setupAuth } from "./auth";
+import upload, { handleMulterError } from "./upload";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -463,6 +464,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const notificationId = parseInt(req.params.id);
       await storage.markNotificationAsRead(notificationId);
       res.status(200).json({ success: true });
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+
+  // Percorso statico per accedere ai file caricati
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
+  // Rotte per l'upload di file
+  // Upload immagine profilo
+  app.post('/api/uploads/profile', (req: Request, res: Response, next: NextFunction) => {
+    // Verifica che l'utente sia autenticato
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: 'Devi essere autenticato per caricare un\'immagine del profilo' });
+    }
+    next();
+  }, upload.single('file'), handleMulterError, async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Nessun file caricato' });
+      }
+
+      // Crea l'URL del file caricato
+      const fileUrl = `/uploads/profile-images/${req.file.filename}`;
+      
+      // Aggiorna il profilo utente con la nuova immagine
+      const userId = req.user!.id;
+      const user = await storage.updateUserProfile(userId, { profilePicture: fileUrl });
+      
+      // Rimuovi la password dalla risposta
+      const { password, ...userWithoutPassword } = user;
+      
+      res.status(200).json({ 
+        success: true, 
+        fileUrl, 
+        user: userWithoutPassword 
+      });
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+
+  // Upload post media (immagini o video)
+  app.post('/api/uploads/post', (req: Request, res: Response, next: NextFunction) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: 'Devi essere autenticato per caricare contenuti' });
+    }
+    next();
+  }, upload.single('file'), handleMulterError, async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Nessun file caricato' });
+      }
+
+      // Crea l'URL del file caricato
+      const fileUrl = `/uploads/posts/${req.file.filename}`;
+      
+      // Determina il tipo di media in base al file caricato
+      const mediaType = req.file.mimetype.startsWith('image/') ? 'image' : 
+                        req.file.mimetype.startsWith('video/') ? 'video' : 
+                        req.file.mimetype.startsWith('audio/') ? 'audio' : 'unknown';
+      
+      res.status(200).json({ 
+        success: true, 
+        fileUrl,
+        mediaType 
+      });
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+
+  // Upload video
+  app.post('/api/uploads/video', (req: Request, res: Response, next: NextFunction) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: 'Devi essere autenticato per caricare video' });
+    }
+    next();
+  }, upload.single('file'), handleMulterError, async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Nessun file caricato' });
+      }
+
+      // Crea l'URL del file caricato
+      const fileUrl = `/uploads/videos/${req.file.filename}`;
+      
+      res.status(200).json({ 
+        success: true, 
+        fileUrl
+      });
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+
+  // Upload story
+  app.post('/api/uploads/story', (req: Request, res: Response, next: NextFunction) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: 'Devi essere autenticato per caricare stories' });
+    }
+    next();
+  }, upload.single('file'), handleMulterError, async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Nessun file caricato' });
+      }
+
+      // Crea l'URL del file caricato
+      const fileUrl = `/uploads/stories/${req.file.filename}`;
+      
+      // Determina il tipo di media in base al file caricato
+      const mediaType = req.file.mimetype.startsWith('image/') ? 'image' : 
+                        req.file.mimetype.startsWith('video/') ? 'video' : 'unknown';
+      
+      res.status(200).json({ 
+        success: true, 
+        fileUrl,
+        mediaType 
+      });
     } catch (err) {
       handleZodError(err, res);
     }

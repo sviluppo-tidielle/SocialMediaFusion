@@ -11,6 +11,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ArrowLeft, User as UserIcon, Upload, Plus, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import ProfileImageSelector from '@/components/mobile/ProfileImageSelector';
 import { cn } from '@/lib/utils';
 import { 
   Card, 
@@ -174,18 +175,47 @@ export default function EditProfile() {
     updateProfileMutation.mutate(profileData);
   };
   
-  const handleImageUpload = () => {
-    // In a real app, this would open a file picker and upload the image
-    // For now, we'll just simulate a random profile picture change
-    const demoImages = [
-      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=160&h=160&q=80',
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&auto=format&fit=crop&w=160&h=160&q=80',
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=crop&w=160&h=160&q=80',
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?ixlib=rb-1.2.1&auto=format&fit=crop&w=160&h=160&q=80'
-    ];
-    
-    const randomImage = demoImages[Math.floor(Math.random() * demoImages.length)];
-    setProfilePicture(randomImage);
+  // Upload profile image mutation
+  const uploadProfileImageMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch('/api/uploads/profile', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Errore durante il caricamento dell\'immagine');
+      }
+      
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Immagine aggiornata!',
+        description: 'La tua immagine del profilo è stata caricata con successo.',
+      });
+      
+      setProfilePicture(data.fileUrl);
+      
+      // Invalidate cache to refresh profile
+      queryClient.invalidateQueries({ queryKey: [`/api/users/${userId}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Errore durante il caricamento',
+        description: String(error),
+        variant: 'destructive',
+      });
+    }
+  });
+  
+  const handleProfileImageSelected = (imageFile: File, preview: string) => {
+    const formData = new FormData();
+    formData.append('file', imageFile);
+    uploadProfileImageMutation.mutate(formData);
   };
   
   return (
@@ -230,33 +260,10 @@ export default function EditProfile() {
         ) : (
           <form id="edit-profile-form" onSubmit={handleSubmit} className="space-y-8">
             {/* Profile Picture */}
-            <div className="flex flex-col items-center mb-6">
-              <div className="relative">
-                <Avatar className="w-24 h-24 border-2 border-primary">
-                  <AvatarImage src={profilePicture} alt="Profile picture" />
-                  <AvatarFallback>
-                    <UserIcon className="h-12 w-12 text-slate-400" />
-                  </AvatarFallback>
-                </Avatar>
-                
-                <button 
-                  type="button"
-                  className="absolute bottom-0 right-0 bg-primary text-white rounded-full p-2"
-                  onClick={handleImageUpload}
-                  aria-label="Upload profile picture"
-                >
-                  <Upload className="h-4 w-4" />
-                </button>
-              </div>
-              
-              <button 
-                type="button"
-                className="mt-2 text-primary font-medium text-sm"
-                onClick={handleImageUpload}
-              >
-                Cambia immagine profilo
-              </button>
-            </div>
+            <ProfileImageSelector 
+              currentImage={profilePicture} 
+              onImageSelected={handleProfileImageSelected} 
+            />
             
             <Tabs defaultValue="basic" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
