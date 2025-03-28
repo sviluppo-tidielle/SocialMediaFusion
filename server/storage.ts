@@ -892,4 +892,776 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Implementazione del DatabaseStorage che utilizza Drizzle ORM per PostgreSQL
+import { db } from './db';
+import { eq, and, or, like, desc, asc, sql, not, isNull } from 'drizzle-orm';
+import connectPg from 'connect-pg-simple';
+
+const PostgresSessionStore = connectPg(session);
+
+export class DatabaseStorage implements IStorage {
+  public sessionStore: session.Store;
+
+  constructor() {
+    // Inizializza il session store PostgreSQL
+    this.sessionStore = new PostgresSessionStore({
+      conObject: {
+        connectionString: process.env.DATABASE_URL,
+      },
+      createTableIfMissing: true,
+    });
+  }
+
+  // User operations
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const [newUser] = await db.insert(users).values(user).returning();
+    return newUser;
+  }
+
+  async updateUserProfile(userId: number, profileData: UpdateUserProfile): Promise<User> {
+    const [updatedUser] = await db
+      .update(users)
+      .set(profileData)
+      .where(eq(users.id, userId))
+      .returning();
+    
+    if (!updatedUser) {
+      throw new Error("Utente non trovato");
+    }
+    
+    return updatedUser;
+  }
+
+  async getUserWithProfile(id: number, currentUserId?: number): Promise<UserWithProfile | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    
+    if (!user) return undefined;
+    
+    let isFollowing = false;
+    if (currentUserId) {
+      isFollowing = await this.isFollowing(currentUserId, id);
+    }
+    
+    return { ...user, isFollowing };
+  }
+
+  async searchUsers(query: string, limit: number = 10): Promise<UserWithProfile[]> {
+    const foundUsers = await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          like(users.username, `%${query}%`),
+          like(users.fullName, `%${query}%`)
+        )
+      )
+      .limit(limit);
+    
+    return foundUsers.map(user => ({
+      ...user,
+      isFollowing: false
+    }));
+  }
+
+  // Post operations
+  async createPost(post: InsertPost): Promise<Post> {
+    const [newPost] = await db.insert(posts).values(post).returning();
+    
+    // Update user post count
+    await db
+      .update(users)
+      .set({ postCount: sql`${users.postCount} + 1` })
+      .where(eq(users.id, post.userId));
+    
+    return newPost;
+  }
+
+  async getPost(id: number): Promise<Post | undefined> {
+    const [post] = await db.select().from(posts).where(eq(posts.id, id));
+    return post;
+  }
+
+  async getPostsByUserId(userId: number): Promise<Post[]> {
+    return db
+      .select()
+      .from(posts)
+      .where(eq(posts.userId, userId))
+      .orderBy(desc(posts.createdAt));
+  }
+
+  async getFeedPosts(userId: number): Promise<PostWithUser[]> {
+    // Get followed users IDs
+    const followedUsers = await db
+      .select({ followingId: follows.followingId })
+      .from(follows)
+      .where(eq(follows.followerId, userId));
+    
+    const followingIds = followedUsers.map(f => f.followingId);
+    
+    // Include own posts and followed users' posts
+    const feedPosts = await db
+      .select()
+      .from(posts)
+      .where(
+        or(
+          eq(posts.userId, userId),
+          userId ? sql`${posts.userId} IN (${followingIds.length > 0 ? followingIds.join(',') : 0})` : sql`FALSE`
+        )
+      )
+      .orderBy(desc(posts.createdAt));
+    
+    // Add user info and like status
+    const postsWithUsers: PostWithUser[] = [];
+    
+    for (const post of feedPosts) {
+      const [postUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, post.userId));
+      
+      if (postUser) {
+        const isLiked = await this.isPostLiked(userId, post.id);
+        const { password, ...userWithoutPassword } = postUser;
+        
+        postsWithUsers.push({
+          ...post,
+          user: userWithoutPassword,
+          isLiked
+        });
+      }
+    }
+    
+    return postsWithUsers;
+  }
+
+  async likePost(userId: number, postId: number): Promise<void> {
+    // Check if already liked
+    const alreadyLiked = await this.isPostLiked(userId, postId);
+    if (alreadyLiked) return;
+    
+    const [post] = await db.select().from(posts).where(eq(posts.id, postId));
+    if (!post) throw new Error("Post not found");
+    
+    // Create like record
+    await db.insert(likes).values({
+      userId,
+      contentId: postId,
+      contentType: 'post'
+    });
+    
+    // Update post like count
+    await db
+      .update(posts)
+      .set({ likeCount: sql`${posts.likeCount} + 1` })
+      .where(eq(posts.id, postId));
+    
+    // Create notification
+    if (userId !== post.userId) {
+      await this.createNotification({
+        userId: post.userId,
+        type: 'like',
+        actorId: userId,
+        contentId: postId,
+        contentType: 'post'
+      });
+    }
+  }
+
+  async unlikePost(userId: number, postId: number): Promise<void> {
+    // Delete like record
+    const deletedCount = await db
+      .delete(likes)
+      .where(
+        and(
+          eq(likes.userId, userId),
+          eq(likes.contentId, postId),
+          eq(likes.contentType, 'post')
+        )
+      );
+    
+    if (deletedCount) {
+      // Update post like count
+      await db
+        .update(posts)
+        .set({ likeCount: sql`GREATEST(0, ${posts.likeCount} - 1)` })
+        .where(eq(posts.id, postId));
+    }
+  }
+
+  async isPostLiked(userId: number, postId: number): Promise<boolean> {
+    const [like] = await db
+      .select()
+      .from(likes)
+      .where(
+        and(
+          eq(likes.userId, userId),
+          eq(likes.contentId, postId),
+          eq(likes.contentType, 'post')
+        )
+      );
+    
+    return !!like;
+  }
+
+  // Story operations
+  async createStory(story: InsertStory): Promise<Story> {
+    const [newStory] = await db.insert(stories).values(story).returning();
+    return newStory;
+  }
+
+  async getStory(id: number): Promise<Story | undefined> {
+    const [story] = await db.select().from(stories).where(eq(stories.id, id));
+    return story;
+  }
+
+  async getStoriesByUserId(userId: number): Promise<Story[]> {
+    const now = new Date();
+    return db
+      .select()
+      .from(stories)
+      .where(
+        and(
+          eq(stories.userId, userId),
+          sql`${stories.expiresAt} > NOW()`
+        )
+      )
+      .orderBy(desc(stories.createdAt));
+  }
+
+  async getFeedStories(userId: number): Promise<StoryWithUser[]> {
+    // Get followed users
+    const followedUsers = await db
+      .select({ followingId: follows.followingId })
+      .from(follows)
+      .where(eq(follows.followerId, userId));
+    
+    const followingIds = followedUsers.map(f => f.followingId);
+    
+    // Get active stories from followed users and self
+    const feedStories = await db
+      .select()
+      .from(stories)
+      .where(
+        and(
+          or(
+            eq(stories.userId, userId),
+            userId ? sql`${stories.userId} IN (${followingIds.length > 0 ? followingIds.join(',') : 0})` : sql`FALSE`
+          ),
+          sql`${stories.expiresAt} > NOW()`
+        )
+      )
+      .orderBy(desc(stories.createdAt));
+    
+    // Add user info and viewed status
+    const storiesWithUsers: StoryWithUser[] = [];
+    
+    for (const story of feedStories) {
+      const [storyUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, story.userId));
+      
+      if (storyUser) {
+        const isViewed = await this.isStoryViewed(userId, story.id);
+        const { password, ...userWithoutPassword } = storyUser;
+        
+        storiesWithUsers.push({
+          ...story,
+          user: userWithoutPassword,
+          isViewed
+        });
+      }
+    }
+    
+    return storiesWithUsers;
+  }
+
+  async viewStory(userId: number, storyId: number): Promise<void> {
+    // Check if already viewed
+    const alreadyViewed = await this.isStoryViewed(userId, storyId);
+    if (alreadyViewed) return;
+    
+    // Create view record
+    await db.insert(storyViews).values({
+      userId,
+      storyId
+    });
+    
+    // Update story view count
+    await db
+      .update(stories)
+      .set({ viewCount: sql`${stories.viewCount} + 1` })
+      .where(eq(stories.id, storyId));
+  }
+
+  async isStoryViewed(userId: number, storyId: number): Promise<boolean> {
+    const [view] = await db
+      .select()
+      .from(storyViews)
+      .where(
+        and(
+          eq(storyViews.userId, userId),
+          eq(storyViews.storyId, storyId)
+        )
+      );
+    
+    return !!view;
+  }
+
+  // Video operations
+  async createVideo(video: InsertVideo): Promise<Video> {
+    const [newVideo] = await db.insert(videos).values(video).returning();
+    
+    // Update user post count
+    await db
+      .update(users)
+      .set({ postCount: sql`${users.postCount} + 1` })
+      .where(eq(users.id, video.userId));
+    
+    return newVideo;
+  }
+
+  async getVideo(id: number): Promise<Video | undefined> {
+    const [video] = await db.select().from(videos).where(eq(videos.id, id));
+    return video;
+  }
+
+  async getVideosByUserId(userId: number): Promise<Video[]> {
+    return db
+      .select()
+      .from(videos)
+      .where(eq(videos.userId, userId))
+      .orderBy(desc(videos.createdAt));
+  }
+
+  async getVideosForFeed(userId: number): Promise<VideoWithUser[]> {
+    // Get followed users
+    const followedUsers = await db
+      .select({ followingId: follows.followingId })
+      .from(follows)
+      .where(eq(follows.followerId, userId));
+    
+    const followingIds = followedUsers.map(f => f.followingId);
+    
+    // Get videos from followed users and self
+    const feedVideos = await db
+      .select()
+      .from(videos)
+      .where(
+        or(
+          eq(videos.userId, userId),
+          userId ? sql`${videos.userId} IN (${followingIds.length > 0 ? followingIds.join(',') : 0})` : sql`FALSE`
+        )
+      )
+      .orderBy(desc(videos.createdAt));
+    
+    // Add user info and like status
+    const videosWithUsers: VideoWithUser[] = [];
+    
+    for (const video of feedVideos) {
+      const [videoUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, video.userId));
+      
+      if (videoUser) {
+        const isLiked = await this.isVideoLiked(userId, video.id);
+        const { password, ...userWithoutPassword } = videoUser;
+        
+        videosWithUsers.push({
+          ...video,
+          user: userWithoutPassword,
+          isLiked
+        });
+      }
+    }
+    
+    return videosWithUsers;
+  }
+
+  async likeVideo(userId: number, videoId: number): Promise<void> {
+    // Check if already liked
+    const alreadyLiked = await this.isVideoLiked(userId, videoId);
+    if (alreadyLiked) return;
+    
+    const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
+    if (!video) throw new Error("Video not found");
+    
+    // Create like record
+    await db.insert(likes).values({
+      userId,
+      contentId: videoId,
+      contentType: 'video'
+    });
+    
+    // Update video like count
+    await db
+      .update(videos)
+      .set({ likeCount: sql`${videos.likeCount} + 1` })
+      .where(eq(videos.id, videoId));
+    
+    // Create notification
+    if (userId !== video.userId) {
+      await this.createNotification({
+        userId: video.userId,
+        type: 'like',
+        actorId: userId,
+        contentId: videoId,
+        contentType: 'video'
+      });
+    }
+  }
+
+  async unlikeVideo(userId: number, videoId: number): Promise<void> {
+    // Delete like record
+    const deletedCount = await db
+      .delete(likes)
+      .where(
+        and(
+          eq(likes.userId, userId),
+          eq(likes.contentId, videoId),
+          eq(likes.contentType, 'video')
+        )
+      );
+    
+    if (deletedCount) {
+      // Update video like count
+      await db
+        .update(videos)
+        .set({ likeCount: sql`GREATEST(0, ${videos.likeCount} - 1)` })
+        .where(eq(videos.id, videoId));
+    }
+  }
+
+  async isVideoLiked(userId: number, videoId: number): Promise<boolean> {
+    const [like] = await db
+      .select()
+      .from(likes)
+      .where(
+        and(
+          eq(likes.userId, userId),
+          eq(likes.contentId, videoId),
+          eq(likes.contentType, 'video')
+        )
+      );
+    
+    return !!like;
+  }
+
+  // Comment operations
+  async createComment(comment: InsertComment): Promise<Comment> {
+    const [newComment] = await db.insert(comments).values(comment).returning();
+    
+    // Update comment count on content
+    if (comment.contentType === 'post') {
+      await db
+        .update(posts)
+        .set({ commentCount: sql`${posts.commentCount} + 1` })
+        .where(eq(posts.id, comment.contentId));
+        
+      // Get post owner for notification
+      const [post] = await db
+        .select({ userId: posts.userId })
+        .from(posts)
+        .where(eq(posts.id, comment.contentId));
+      
+      // Create notification for post owner
+      if (post && post.userId !== comment.userId) {
+        await this.createNotification({
+          userId: post.userId,
+          type: 'comment',
+          actorId: comment.userId,
+          contentId: comment.contentId,
+          contentType: 'post'
+        });
+      }
+    } else if (comment.contentType === 'video') {
+      await db
+        .update(videos)
+        .set({ commentCount: sql`${videos.commentCount} + 1` })
+        .where(eq(videos.id, comment.contentId));
+        
+      // Get video owner for notification
+      const [video] = await db
+        .select({ userId: videos.userId })
+        .from(videos)
+        .where(eq(videos.id, comment.contentId));
+      
+      // Create notification for video owner
+      if (video && video.userId !== comment.userId) {
+        await this.createNotification({
+          userId: video.userId,
+          type: 'comment',
+          actorId: comment.userId,
+          contentId: comment.contentId,
+          contentType: 'video'
+        });
+      }
+    }
+    
+    return newComment;
+  }
+
+  async getCommentsByContentId(contentId: number, contentType: string): Promise<Comment[]> {
+    return db
+      .select()
+      .from(comments)
+      .where(
+        and(
+          eq(comments.contentId, contentId),
+          eq(comments.contentType, contentType)
+        )
+      )
+      .orderBy(asc(comments.createdAt));
+  }
+
+  // Follow operations
+  async followUser(followerId: number, followingId: number): Promise<void> {
+    // Check if already following
+    const alreadyFollowing = await this.isFollowing(followerId, followingId);
+    if (alreadyFollowing) return;
+    
+    // Create follow record
+    await db.insert(follows).values({
+      followerId,
+      followingId
+    });
+    
+    // Update follower count for followed user
+    await db
+      .update(users)
+      .set({ followerCount: sql`${users.followerCount} + 1` })
+      .where(eq(users.id, followingId));
+    
+    // Update following count for follower
+    await db
+      .update(users)
+      .set({ followingCount: sql`${users.followingCount} + 1` })
+      .where(eq(users.id, followerId));
+    
+    // Create notification
+    await this.createNotification({
+      userId: followingId,
+      type: 'follow',
+      actorId: followerId,
+      contentType: 'user'
+    });
+  }
+
+  async unfollowUser(followerId: number, followingId: number): Promise<void> {
+    // Delete follow record
+    const deletedCount = await db
+      .delete(follows)
+      .where(
+        and(
+          eq(follows.followerId, followerId),
+          eq(follows.followingId, followingId)
+        )
+      );
+    
+    if (deletedCount) {
+      // Update follower count for followed user
+      await db
+        .update(users)
+        .set({ followerCount: sql`GREATEST(0, ${users.followerCount} - 1)` })
+        .where(eq(users.id, followingId));
+      
+      // Update following count for follower
+      await db
+        .update(users)
+        .set({ followingCount: sql`GREATEST(0, ${users.followingCount} - 1)` })
+        .where(eq(users.id, followerId));
+    }
+  }
+
+  async isFollowing(followerId: number, followingId: number): Promise<boolean> {
+    const [follow] = await db
+      .select()
+      .from(follows)
+      .where(
+        and(
+          eq(follows.followerId, followerId),
+          eq(follows.followingId, followingId)
+        )
+      );
+    
+    return !!follow;
+  }
+
+  async getFollowers(userId: number): Promise<User[]> {
+    const followers = await db
+      .select({ user: users })
+      .from(users)
+      .innerJoin(follows, eq(users.id, follows.followerId))
+      .where(eq(follows.followingId, userId));
+    
+    return followers.map(f => f.user);
+  }
+
+  async getFollowing(userId: number): Promise<User[]> {
+    const following = await db
+      .select({ user: users })
+      .from(users)
+      .innerJoin(follows, eq(users.id, follows.followingId))
+      .where(eq(follows.followerId, userId));
+    
+    return following.map(f => f.user);
+  }
+
+  async getSuggestedUsers(userId: number, limit: number = 5): Promise<UserWithProfile[]> {
+    // Ottiene informazioni sull'utente corrente
+    const [currentUser] = await db.select().from(users).where(eq(users.id, userId));
+    if (!currentUser) return [];
+    
+    // Ottiene gli utenti già seguiti
+    const followedUsers = await db
+      .select({ followingId: follows.followingId })
+      .from(follows)
+      .where(eq(follows.followerId, userId));
+    
+    const followingIds = followedUsers.map(f => f.followingId);
+    
+    // Ottiene tutti gli utenti che non sono già seguiti (escludendo se stesso)
+    const potentialSuggestions = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          not(eq(users.id, userId)),
+          !followingIds.length ? sql`TRUE` : sql`${users.id} NOT IN (${followingIds.join(',')})`
+        )
+      );
+    
+    // Funzione per calcolare un punteggio di affinità tra utenti
+    const calculateAffinityScore = (user: User): number => {
+      let score = 0;
+      
+      // Punteggio per località corrispondente
+      if (currentUser.location && user.location && 
+          currentUser.location.toLowerCase() === user.location.toLowerCase()) {
+        score += 5;
+      }
+      
+      // Punteggio per stesso ambito educativo
+      if (currentUser.education && user.education && 
+          currentUser.education.toLowerCase() === user.education.toLowerCase()) {
+        score += 4;
+      }
+      
+      // Punteggio per stessa occupazione/professione
+      if (currentUser.occupation && user.occupation && 
+          currentUser.occupation.toLowerCase() === user.occupation.toLowerCase()) {
+        score += 3;
+      }
+      
+      // Punteggio per interessi comuni
+      if (currentUser.interests && user.interests) {
+        const commonInterests = currentUser.interests.filter(interest => 
+          user.interests?.includes(interest)
+        );
+        score += commonInterests.length * 2;
+      }
+      
+      // Punteggio per abilità comuni
+      if (currentUser.skills && user.skills) {
+        const commonSkills = currentUser.skills.filter(skill => 
+          user.skills?.includes(skill)
+        );
+        score += commonSkills.length;
+      }
+      
+      // Punteggio per lingue comuni
+      if (currentUser.languages && user.languages) {
+        const commonLanguages = currentUser.languages.filter(language => 
+          user.languages?.includes(language)
+        );
+        score += commonLanguages.length;
+      }
+      
+      // Se l'utente ha specificato preferenze di connessione, considerale
+      if (currentUser.connectionPreferences && currentUser.connectionPreferences.length > 0) {
+        if (currentUser.connectionPreferences.includes('location') && 
+            currentUser.location === user.location) {
+          score += 3;
+        }
+        
+        if (currentUser.connectionPreferences.includes('education') && 
+            currentUser.education === user.education) {
+          score += 3;
+        }
+        
+        if (currentUser.connectionPreferences.includes('professional') && 
+            currentUser.occupation === user.occupation) {
+          score += 3;
+        }
+        
+        if (currentUser.connectionPreferences.includes('interests') && 
+            currentUser.interests && user.interests) {
+          const hasCommonInterests = currentUser.interests.some(interest => 
+            user.interests?.includes(interest)
+          );
+          if (hasCommonInterests) score += 3;
+        }
+      }
+      
+      return score;
+    };
+    
+    // Calcola il punteggio per ciascun utente e ordina in base al punteggio
+    const scoredSuggestions = potentialSuggestions.map(user => ({
+      user,
+      score: calculateAffinityScore(user)
+    }));
+    
+    // Ordina per punteggio (dal più alto al più basso)
+    scoredSuggestions.sort((a, b) => b.score - a.score);
+    
+    // Seleziona i top N utenti
+    const suggestedUsers = scoredSuggestions
+      .slice(0, limit)
+      .map(item => ({
+        ...item.user,
+        isFollowing: false
+      }));
+    
+    return suggestedUsers;
+  }
+
+  // Notification operations
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [newNotification] = await db
+      .insert(notifications)
+      .values({ ...notification, read: false })
+      .returning();
+    
+    return newNotification;
+  }
+
+  async getNotificationsByUserId(userId: number): Promise<Notification[]> {
+    return db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async markNotificationAsRead(notificationId: number): Promise<void> {
+    await db
+      .update(notifications)
+      .set({ read: true })
+      .where(eq(notifications.id, notificationId));
+  }
+}
+
+// Esporta l'istanza di storage (database)
+export const storage = new DatabaseStorage();

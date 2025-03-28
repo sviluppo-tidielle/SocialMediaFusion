@@ -1,6 +1,7 @@
-import { pgTable, text, serial, integer, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 // Users Table
 export const users = pgTable("users", {
@@ -107,6 +108,105 @@ export const notifications = pgTable("notifications", {
   read: boolean("read").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Relazioni
+export const usersRelations = relations(users, ({ many }) => ({
+  posts: many(posts),
+  videos: many(videos),
+  stories: many(stories),
+  comments: many(comments),
+  likes: many(likes),
+  followers: many(follows, { relationName: "followers" }),
+  following: many(follows, { relationName: "following" }),
+  notifications: many(notifications, { relationName: "userNotifications" }),
+  actorNotifications: many(notifications, { relationName: "actorNotifications" }),
+  storyViews: many(storyViews),
+}));
+
+export const postsRelations = relations(posts, ({ one, many }) => ({
+  user: one(users, {
+    fields: [posts.userId],
+    references: [users.id],
+  }),
+  comments: many(comments, {
+    relationName: "postComments"
+  }),
+  likes: many(likes, {
+    relationName: "postLikes"
+  }),
+}));
+
+export const videosRelations = relations(videos, ({ one, many }) => ({
+  user: one(users, {
+    fields: [videos.userId],
+    references: [users.id],
+  }),
+  comments: many(comments, {
+    relationName: "videoComments"
+  }),
+  likes: many(likes, {
+    relationName: "videoLikes"
+  }),
+}));
+
+export const storiesRelations = relations(stories, ({ one, many }) => ({
+  user: one(users, {
+    fields: [stories.userId],
+    references: [users.id],
+  }),
+  views: many(storyViews),
+}));
+
+export const storyViewsRelations = relations(storyViews, ({ one }) => ({
+  story: one(stories, {
+    fields: [storyViews.storyId],
+    references: [stories.id],
+  }),
+  user: one(users, {
+    fields: [storyViews.userId],
+    references: [users.id],
+  }),
+}));
+
+export const commentsRelations = relations(comments, ({ one }) => ({
+  user: one(users, {
+    fields: [comments.userId],
+    references: [users.id],
+  }),
+}));
+
+export const followsRelations = relations(follows, ({ one }) => ({
+  follower: one(users, {
+    fields: [follows.followerId],
+    references: [users.id],
+    relationName: "followers",
+  }),
+  following: one(users, {
+    fields: [follows.followingId],
+    references: [users.id],
+    relationName: "following",
+  }),
+}));
+
+export const likesRelations = relations(likes, ({ one }) => ({
+  user: one(users, {
+    fields: [likes.userId],
+    references: [users.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+    relationName: "userNotifications",
+  }),
+  actor: one(users, {
+    fields: [notifications.actorId],
+    references: [users.id],
+    relationName: "actorNotifications",
+  }),
+}));
 
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, followerCount: true, followingCount: true, postCount: true });
