@@ -21,6 +21,7 @@ import {
 import EditPostModal from '@/components/mobile/EditPostModal';
 import LiveStreamModal from '@/components/mobile/LiveStreamModal';
 import PostOptionsMenu from '@/components/PostOptionsMenu';
+import ShareModal from '@/components/ShareModal';
 
 // Mock current user id until auth is implemented
 const CURRENT_USER_ID = 1;
@@ -33,6 +34,7 @@ export default function Feed() {
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   
   // Set the active tab when this component mounts
   useEffect(() => {
@@ -86,8 +88,8 @@ export default function Feed() {
   };
   
   const handleSharePost = (postId: number) => {
-    // Implement share functionality
-    console.log('Share post', postId);
+    setSelectedPostId(postId);
+    setShareModalOpen(true);
   };
   
   const handleOptionsMenu = (postId: number) => {
@@ -191,6 +193,15 @@ export default function Feed() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {/* Share modal */}
+      {selectedPostId && (
+        <ShareModal
+          postId={selectedPostId}
+          isOpen={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -21,6 +21,11 @@ export const users = pgTable("users", {
   skills: jsonb("skills").$type<string[]>(), // Competenze come array di stringhe
   languages: jsonb("languages").$type<string[]>(), // Lingue parlate
   connectionPreferences: jsonb("connection_preferences").$type<string[]>(), // Preferenze per i tipi di connessioni
+  facebookUrl: text("facebook_url"), // Link al profilo Facebook
+  instagramUrl: text("instagram_url"), // Link al profilo Instagram
+  twitterUrl: text("twitter_url"), // Link al profilo Twitter
+  linkedinUrl: text("linkedin_url"), // Link al profilo LinkedIn
+  whatsappNumber: text("whatsapp_number"), // Numero WhatsApp
   followerCount: integer("follower_count").default(0),
   followingCount: integer("following_count").default(0),
   postCount: integer("post_count").default(0),
@@ -242,6 +247,11 @@ export const updateUserProfileSchema = createInsertSchema(users)
     skills: z.array(z.string()).nullable().optional(),
     languages: z.array(z.string()).nullable().optional(),
     connectionPreferences: z.array(z.string()).nullable().optional(),
+    facebookUrl: z.string().nullable().optional(),
+    instagramUrl: z.string().nullable().optional(),
+    twitterUrl: z.string().nullable().optional(),
+    linkedinUrl: z.string().nullable().optional(),
+    whatsappNumber: z.string().nullable().optional(),
   });
 
 // Types

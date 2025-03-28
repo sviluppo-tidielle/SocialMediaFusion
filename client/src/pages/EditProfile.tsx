@@ -51,6 +51,13 @@ export default function EditProfile() {
   const [email, setEmail] = useState('');
   const [profilePicture, setProfilePicture] = useState('');
   
+  // State for social media fields
+  const [facebookUrl, setFacebookUrl] = useState('');
+  const [instagramUrl, setInstagramUrl] = useState('');
+  const [twitterUrl, setTwitterUrl] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  
   // State for recommendation fields
   const [location, setLocation] = useState('');
   const [occupation, setOccupation] = useState('');
@@ -83,6 +90,13 @@ export default function EditProfile() {
       setWebsite(user.website || '');
       setEmail(user.email || '');
       setProfilePicture(user.profilePicture || '');
+      
+      // Initialize social media fields
+      setFacebookUrl(user.facebookUrl || '');
+      setInstagramUrl(user.instagramUrl || '');
+      setTwitterUrl(user.twitterUrl || '');
+      setLinkedinUrl(user.linkedinUrl || '');
+      setWhatsappNumber(user.whatsappNumber || '');
       
       // Initialize recommendation data
       setLocation(user.location || '');
@@ -169,7 +183,12 @@ export default function EditProfile() {
       interests,
       skills,
       languages,
-      connectionPreferences
+      connectionPreferences,
+      facebookUrl,
+      instagramUrl,
+      twitterUrl,
+      linkedinUrl,
+      whatsappNumber
     };
     
     updateProfileMutation.mutate(profileData);
@@ -348,6 +367,76 @@ export default function EditProfile() {
                         value={website || ''} 
                         onChange={(e) => setWebsite(e.target.value)}
                         placeholder="Il tuo sito web"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Profili social</CardTitle>
+                    <CardDescription>
+                      Aggiungi i tuoi profili sui social media per permettere agli utenti di contattarti
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <label htmlFor="facebookUrl" className="block text-sm font-medium mb-1">
+                        Facebook
+                      </label>
+                      <Input 
+                        id="facebookUrl"
+                        value={facebookUrl || ''} 
+                        onChange={(e) => setFacebookUrl(e.target.value)}
+                        placeholder="URL del tuo profilo Facebook"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="instagramUrl" className="block text-sm font-medium mb-1">
+                        Instagram
+                      </label>
+                      <Input 
+                        id="instagramUrl"
+                        value={instagramUrl || ''} 
+                        onChange={(e) => setInstagramUrl(e.target.value)}
+                        placeholder="URL del tuo profilo Instagram"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="twitterUrl" className="block text-sm font-medium mb-1">
+                        Twitter
+                      </label>
+                      <Input 
+                        id="twitterUrl"
+                        value={twitterUrl || ''} 
+                        onChange={(e) => setTwitterUrl(e.target.value)}
+                        placeholder="URL del tuo profilo Twitter"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="linkedinUrl" className="block text-sm font-medium mb-1">
+                        LinkedIn
+                      </label>
+                      <Input 
+                        id="linkedinUrl"
+                        value={linkedinUrl || ''} 
+                        onChange={(e) => setLinkedinUrl(e.target.value)}
+                        placeholder="URL del tuo profilo LinkedIn"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="whatsappNumber" className="block text-sm font-medium mb-1">
+                        Numero WhatsApp
+                      </label>
+                      <Input 
+                        id="whatsappNumber"
+                        value={whatsappNumber || ''} 
+                        onChange={(e) => setWhatsappNumber(e.target.value)}
+                        placeholder="Il tuo numero WhatsApp (formato internazionale)"
                       />
                     </div>
                   </CardContent>
