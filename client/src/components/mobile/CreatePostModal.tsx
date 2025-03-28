@@ -168,7 +168,7 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
                     <div className="bg-white rounded-full p-4 inline-flex mb-4 shadow-md">
                       <Camera className="h-10 w-10 text-blue-500" />
                     </div>
-                    <h3 className="text-lg font-medium mb-2">Scatta una foto</h3>
+                    <h3 className="text-lg font-medium mb-2">Inserisci una foto</h3>
                     <p className="text-sm text-slate-600 mb-4">Immortala un momento da condividere con i tuoi amici</p>
                     <Button
                       type="button"
@@ -179,7 +179,7 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
                       }}
                     >
                       <Camera className="h-4 w-4 mr-2" />
-                      Apri fotocamera
+                      Inserisci immagine
                     </Button>
                   </div>
                 </TabsContent>
@@ -189,7 +189,7 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
                     <div className="bg-white rounded-full p-4 inline-flex mb-4 shadow-md">
                       <Video className="h-10 w-10 text-red-500" />
                     </div>
-                    <h3 className="text-lg font-medium mb-2">Registra un video</h3>
+                    <h3 className="text-lg font-medium mb-2">Inserisci un video</h3>
                     <p className="text-sm text-slate-600 mb-4">Cattura e condividi momenti in movimento</p>
                     <Button
                       type="button"
@@ -200,7 +200,7 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
                       }}
                     >
                       <Video className="h-4 w-4 mr-2" />
-                      Registra video
+                      Inserisci video
                     </Button>
                   </div>
                 </TabsContent>
@@ -317,23 +317,33 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
                 </Button>
               </DialogClose>
               
-              <Button 
-                type="submit" 
-                disabled={isSubmitting || uploadMediaMutation.isPending || createPostMutation.isPending || !media}
-                className={!media ? "opacity-50" : "bg-gradient-to-r from-blue-500 to-blue-600"}
-              >
-                {(isSubmitting || uploadMediaMutation.isPending || createPostMutation.isPending) ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Pubblicando...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Pubblica
-                  </>
-                )}
-              </Button>
+              {!media ? (
+                <Button 
+                  type="button" 
+                  disabled={true}
+                  className="opacity-50"
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Pubblica
+                </Button>
+              ) : (isSubmitting || uploadMediaMutation.isPending || createPostMutation.isPending) ? (
+                <Button 
+                  type="submit" 
+                  disabled={true}
+                  className="bg-gradient-to-r from-blue-500 to-blue-600"
+                >
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Pubblicando...
+                </Button>
+              ) : (
+                <Button 
+                  type="submit" 
+                  className="bg-gradient-to-r from-blue-500 to-blue-600"
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Pubblica
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </DialogContent>

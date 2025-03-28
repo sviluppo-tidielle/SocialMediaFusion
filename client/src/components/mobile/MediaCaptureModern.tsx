@@ -268,13 +268,13 @@ const MediaCaptureModern: React.FC<MediaCaptureProps> = ({
               {activeTab === 'photo' && (
                 <div className="flex items-center justify-center">
                   <Camera className="h-5 w-5 mr-2 text-blue-500" />
-                  Scatta una foto
+                  Inserisci una foto
                 </div>
               )}
               {activeTab === 'video' && (
                 <div className="flex items-center justify-center">
                   <Video className="h-5 w-5 mr-2 text-red-500" />
-                  Registra un video
+                  Inserisci un video
                 </div>
               )}
               {activeTab === 'audio' && (
