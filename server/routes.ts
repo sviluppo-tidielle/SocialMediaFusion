@@ -180,7 +180,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Post routes
   app.post("/api/posts", async (req: Request, res: Response) => {
     try {
-      const postData = insertPostSchema.parse(req.body);
+      let postData = insertPostSchema.parse(req.body);
+      
+      // Imposta isPublic a true se non è specificato
+      if (postData.isPublic === undefined) {
+        postData = { ...postData, isPublic: true };
+      }
+      
       const post = await storage.createPost(postData);
       res.status(201).json(post);
     } catch (err) {
@@ -280,6 +286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const updateSchema = z.object({
         caption: z.string().optional().nullable(),
+        isPublic: z.boolean().optional().nullable(),
       });
       
       const updateData = updateSchema.parse(req.body);

@@ -54,9 +54,10 @@ export default function EditProfile() {
   // State for social media fields
   const [facebookUrl, setFacebookUrl] = useState('');
   const [instagramUrl, setInstagramUrl] = useState('');
-  const [twitterUrl, setTwitterUrl] = useState('');
+  const [xUrl, setXUrl] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [tiktokUrl, setTiktokUrl] = useState('');
   
   // State for recommendation fields
   const [location, setLocation] = useState('');
@@ -94,9 +95,10 @@ export default function EditProfile() {
       // Initialize social media fields
       setFacebookUrl(user.facebookUrl || '');
       setInstagramUrl(user.instagramUrl || '');
-      setTwitterUrl(user.twitterUrl || '');
+      setXUrl(user.xUrl || '');
       setLinkedinUrl(user.linkedinUrl || '');
       setWhatsappNumber(user.whatsappNumber || '');
+      setTiktokUrl(user.tiktokUrl || '');
       
       // Initialize recommendation data
       setLocation(user.location || '');
@@ -186,9 +188,10 @@ export default function EditProfile() {
       connectionPreferences,
       facebookUrl,
       instagramUrl,
-      twitterUrl,
+      xUrl,
       linkedinUrl,
-      whatsappNumber
+      whatsappNumber,
+      tiktokUrl
     };
     
     updateProfileMutation.mutate(profileData);
@@ -405,14 +408,26 @@ export default function EditProfile() {
                     </div>
                     
                     <div>
-                      <label htmlFor="twitterUrl" className="block text-sm font-medium mb-1">
-                        Twitter
+                      <label htmlFor="xUrl" className="block text-sm font-medium mb-1">
+                        X (ex Twitter)
                       </label>
                       <Input 
-                        id="twitterUrl"
-                        value={twitterUrl || ''} 
-                        onChange={(e) => setTwitterUrl(e.target.value)}
-                        placeholder="URL del tuo profilo Twitter"
+                        id="xUrl"
+                        value={xUrl || ''} 
+                        onChange={(e) => setXUrl(e.target.value)}
+                        placeholder="URL del tuo profilo X"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="tiktokUrl" className="block text-sm font-medium mb-1">
+                        TikTok
+                      </label>
+                      <Input 
+                        id="tiktokUrl"
+                        value={tiktokUrl || ''} 
+                        onChange={(e) => setTiktokUrl(e.target.value)}
+                        placeholder="URL del tuo profilo TikTok"
                       />
                     </div>
                     

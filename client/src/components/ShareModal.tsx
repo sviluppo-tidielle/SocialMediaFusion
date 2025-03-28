@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Facebook, Twitter, Linkedin, Instagram, MessageSquare, Copy, Check } from "lucide-react";
+import { Facebook, Linkedin, Instagram, MessageSquare, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { User } from "@shared/schema";
+import { BsTwitterX, BsTiktok } from "react-icons/bs";
 
 interface ShareModalProps {
   postId: number;
@@ -45,17 +46,33 @@ export default function ShareModal({ postId, isOpen, onClose }: ShareModalProps)
     }
   };
 
-  const shareToTwitter = () => {
-    if (user?.twitterUrl) {
+  const shareToX = () => {
+    if (user?.xUrl) {
       window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(postUrl)}`, "_blank");
       toast({
-        title: "Condivisione Twitter",
-        description: "Il post è stato condiviso su Twitter",
+        title: "Condivisione X",
+        description: "Il post è stato condiviso su X",
       });
     } else {
       toast({
-        title: "Link Twitter mancante",
-        description: "Aggiungi il tuo URL Twitter nel profilo",
+        title: "Link X mancante",
+        description: "Aggiungi il tuo URL X nel profilo",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const shareToTiktok = () => {
+    if (user?.tiktokUrl) {
+      toast({
+        title: "Condivisione TikTok",
+        description: "Link copiato negli appunti. Apri TikTok e incolla il link",
+      });
+      navigator.clipboard.writeText(postUrl);
+    } else {
+      toast({
+        title: "Link TikTok mancante",
+        description: "Aggiungi il tuo URL TikTok nel profilo",
         variant: "destructive",
       });
     }
@@ -145,10 +162,19 @@ export default function ShareModal({ postId, isOpen, onClose }: ShareModalProps)
           <Button 
             variant="outline" 
             className="flex flex-col items-center py-6"
-            onClick={shareToTwitter}
+            onClick={shareToX}
           >
-            <Twitter className="h-6 w-6 text-sky-500 mb-2" />
-            <span className="text-xs">Twitter</span>
+            <BsTwitterX className="h-5 w-5 text-black mb-2" />
+            <span className="text-xs">X</span>
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            className="flex flex-col items-center py-6"
+            onClick={shareToTiktok}
+          >
+            <BsTiktok className="h-5 w-5 mb-2" />
+            <span className="text-xs">TikTok</span>
           </Button>
           
           <Button 

@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   Loader2, Image, X, Camera, Video, Mic, 
-  Upload, Music, Smile, MapPin, Tag, Sparkles 
+  Upload, Music, Smile, MapPin, Tag, Sparkles,
+  Globe, Lock 
 } from 'lucide-react';
 import MediaCaptureModern, { MediaFile } from './MediaCaptureModern';
 import {
@@ -20,6 +21,8 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -28,6 +31,7 @@ interface CreatePostModalProps {
 
 interface FormData {
   caption: string;
+  isPublic: boolean;
 }
 
 const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
@@ -37,9 +41,11 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  const [isPublic, setIsPublic] = useState(true);
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<FormData>({
     defaultValues: {
       caption: '',
+      isPublic: true,
     },
   });
   
@@ -63,7 +69,7 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
 
   // Create post mutation
   const createPostMutation = useMutation({
-    mutationFn: async (data: { caption: string, mediaUrl: string, mediaType: string }) => {
+    mutationFn: async (data: { caption: string, mediaUrl: string, mediaType: string, isPublic: boolean }) => {
       const response = await apiRequest('POST', '/api/posts', data);
       return await response.json();
     },
@@ -90,7 +96,7 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
     }
   });
   
-  const onSubmit = async (data: { caption: string }) => {
+  const onSubmit = async (data: { caption: string, isPublic: boolean }) => {
     if (!media) {
       toast({
         title: 'Media richiesto',
@@ -114,7 +120,8 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
       await createPostMutation.mutateAsync({
         caption: data.caption,
         mediaUrl: uploadResult.fileUrl,
-        mediaType: uploadResult.mediaType
+        mediaType: uploadResult.mediaType,
+        isPublic: data.isPublic
       });
     } catch (error) {
       console.error('Errore durante il processo di creazione del post:', error);
@@ -292,6 +299,31 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
                     className="resize-none h-20 border-slate-200 focus:border-blue-300"
                     {...register('caption')}
                   />
+                  <div className="flex items-center justify-between mt-3 mb-1">
+                    <div className="flex items-center space-x-2">
+                      {isPublic ? (
+                        <Globe className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Lock className="h-4 w-4 text-orange-500" />
+                      )}
+                      <Label htmlFor="post-privacy" className="text-sm font-medium">
+                        {isPublic ? 'Post pubblico' : 'Post privato (solo per contatti)'}
+                      </Label>
+                    </div>
+                    <Switch
+                      id="post-privacy"
+                      checked={isPublic}
+                      onCheckedChange={(checked) => {
+                        setIsPublic(checked);
+                        // Aggiorna anche il valore nel form
+                        if (checked) {
+                          register('isPublic').onChange({ target: { value: true } });
+                        } else {
+                          register('isPublic').onChange({ target: { value: false } });
+                        }
+                      }}
+                    />
+                  </div>
                   <div className="flex mt-2 text-xs text-slate-500 space-x-3">
                     <button type="button" className="flex items-center">
                       <Smile className="h-4 w-4 mr-1 text-amber-400" />

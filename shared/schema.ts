@@ -23,9 +23,10 @@ export const users = pgTable("users", {
   connectionPreferences: jsonb("connection_preferences").$type<string[]>(), // Preferenze per i tipi di connessioni
   facebookUrl: text("facebook_url"), // Link al profilo Facebook
   instagramUrl: text("instagram_url"), // Link al profilo Instagram
-  twitterUrl: text("twitter_url"), // Link al profilo Twitter
+  xUrl: text("x_url"), // Link al profilo X (ex Twitter)
   linkedinUrl: text("linkedin_url"), // Link al profilo LinkedIn
   whatsappNumber: text("whatsapp_number"), // Numero WhatsApp
+  tiktokUrl: text("tiktok_url"), // Link al profilo TikTok
   followerCount: integer("follower_count").default(0),
   followingCount: integer("following_count").default(0),
   postCount: integer("post_count").default(0),
@@ -38,6 +39,7 @@ export const posts = pgTable("posts", {
   caption: text("caption"),
   mediaUrl: text("media_url").notNull(),
   mediaType: text("media_type").notNull(), // image, video
+  isPublic: boolean("is_public").default(true), // true = pubblico, false = privato (solo per utenti connessi)
   createdAt: timestamp("created_at").defaultNow(),
   likeCount: integer("like_count").default(0),
   commentCount: integer("comment_count").default(0),
@@ -249,9 +251,10 @@ export const updateUserProfileSchema = createInsertSchema(users)
     connectionPreferences: z.array(z.string()).nullable().optional(),
     facebookUrl: z.string().nullable().optional(),
     instagramUrl: z.string().nullable().optional(),
-    twitterUrl: z.string().nullable().optional(),
+    xUrl: z.string().nullable().optional(),
     linkedinUrl: z.string().nullable().optional(),
     whatsappNumber: z.string().nullable().optional(),
+    tiktokUrl: z.string().nullable().optional(),
   });
 
 // Types
