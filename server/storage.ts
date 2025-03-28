@@ -31,6 +31,8 @@ export interface IStorage {
   getPost(id: number): Promise<Post | undefined>;
   getPostsByUserId(userId: number): Promise<Post[]>;
   getFeedPosts(userId: number): Promise<PostWithUser[]>;
+  updatePost(postId: number, data: { caption?: string | null }): Promise<Post>;
+  deletePost(postId: number): Promise<void>;
   likePost(userId: number, postId: number): Promise<void>;
   unlikePost(userId: number, postId: number): Promise<void>;
   isPostLiked(userId: number, postId: number): Promise<boolean>;
@@ -377,6 +379,58 @@ export class MemStorage implements IStorage {
     return Array.from(this.likesMap.values()).some(
       like => like.userId === userId && like.contentId === postId && like.contentType === 'post'
     );
+  }
+  
+  async updatePost(postId: number, data: { caption?: string | null }): Promise<Post> {
+    const post = await this.getPost(postId);
+    if (!post) {
+      throw new Error("Post non trovato");
+    }
+    
+    const updatedPost: Post = {
+      ...post,
+      caption: data.caption !== undefined ? data.caption : post.caption
+    };
+    
+    this.postsMap.set(postId, updatedPost);
+    return updatedPost;
+  }
+  
+  async deletePost(postId: number): Promise<void> {
+    const post = await this.getPost(postId);
+    if (!post) {
+      throw new Error("Post non trovato");
+    }
+    
+    // Elimina il post
+    this.postsMap.delete(postId);
+    
+    // Aggiorna il conteggio dei post dell'utente
+    const user = await this.getUser(post.userId);
+    if (user) {
+      this.usersMap.set(user.id, {
+        ...user,
+        postCount: Math.max(0, user.postCount - 1)
+      });
+    }
+    
+    // Elimina tutti i like relativi al post
+    const postLikes = Array.from(this.likesMap.values()).filter(
+      like => like.contentId === postId && like.contentType === 'post'
+    );
+    
+    for (const like of postLikes) {
+      this.likesMap.delete(like.id);
+    }
+    
+    // Elimina tutti i commenti relativi al post
+    const postComments = Array.from(this.commentsMap.values()).filter(
+      comment => comment.contentId === postId && comment.contentType === 'post'
+    );
+    
+    for (const comment of postComments) {
+      this.commentsMap.delete(comment.id);
+    }
   }
 
   // Story operations
@@ -1111,6 +1165,80 @@ export class DatabaseStorage implements IStorage {
       );
     
     return !!like;
+  }
+  
+  async updatePost(postId: number, data: { caption?: string | null }): Promise<Post> {
+    const [post] = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.id, postId));
+      
+    if (!post) {
+      throw new Error("Post non trovato");
+    }
+    
+    // Aggiorna il post con i nuovi dati
+    const [updatedPost] = await db
+      .update(posts)
+      .set({
+        caption: data.caption !== undefined ? data.caption : post.caption
+      })
+      .where(eq(posts.id, postId))
+      .returning();
+      
+    return updatedPost;
+  }
+  
+  async deletePost(postId: number): Promise<void> {
+    const [post] = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.id, postId));
+      
+    if (!post) {
+      throw new Error("Post non trovato");
+    }
+    
+    // Ottiene l'utente proprietario del post
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, post.userId));
+      
+    if (user) {
+      // Aggiorna il conteggio dei post dell'utente
+      await db
+        .update(users)
+        .set({
+          postCount: sql`GREATEST(0, ${users.postCount} - 1)`
+        })
+        .where(eq(users.id, user.id));
+    }
+    
+    // Elimina tutti i like associati al post
+    await db
+      .delete(likes)
+      .where(
+        and(
+          eq(likes.contentId, postId),
+          eq(likes.contentType, 'post')
+        )
+      );
+      
+    // Elimina tutti i commenti associati al post
+    await db
+      .delete(comments)
+      .where(
+        and(
+          eq(comments.contentId, postId),
+          eq(comments.contentType, 'post')
+        )
+      );
+      
+    // Elimina il post
+    await db
+      .delete(posts)
+      .where(eq(posts.id, postId));
   }
 
   // Story operations

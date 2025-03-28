@@ -217,6 +217,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  app.delete("/api/posts/:id", async (req: Request, res: Response) => {
+    try {
+      const postId = parseInt(req.params.id);
+      const post = await storage.getPost(postId);
+      
+      if (!post) {
+        return res.status(404).json({ error: "Post non trovato" });
+      }
+      
+      // Verifica che l'utente sia il proprietario del post (in produzione)
+      // if (post.userId !== req.user?.id) {
+      //   return res.status(403).json({ error: "Non autorizzato a eliminare questo post" });
+      // }
+      
+      // Elimina il post
+      await storage.deletePost(postId);
+      
+      res.status(200).json({ success: true });
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
   app.post("/api/posts/:id/like", async (req: Request, res: Response) => {
     try {
       const postId = parseInt(req.params.id);
@@ -236,6 +259,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await storage.unlikePost(userId, postId);
       res.status(200).json({ success: true });
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.put("/api/posts/:id", async (req: Request, res: Response) => {
+    try {
+      const postId = parseInt(req.params.id);
+      const post = await storage.getPost(postId);
+      
+      if (!post) {
+        return res.status(404).json({ error: "Post non trovato" });
+      }
+      
+      // Verifica che l'utente sia il proprietario del post (in produzione)
+      // if (post.userId !== req.user?.id) {
+      //   return res.status(403).json({ error: "Non autorizzato a modificare questo post" });
+      // }
+      
+      const updateSchema = z.object({
+        caption: z.string().optional().nullable(),
+      });
+      
+      const updateData = updateSchema.parse(req.body);
+      
+      // Aggiorna il post
+      const updatedPost = await storage.updatePost(postId, updateData);
+      
+      res.json(updatedPost);
     } catch (err) {
       handleZodError(err, res);
     }

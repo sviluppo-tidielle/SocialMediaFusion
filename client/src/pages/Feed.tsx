@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { PostWithUser } from '@shared/schema';
 import { useTab } from '@/hooks/use-tab';
-import { Heart, MessageCircle, Send, MoreHorizontal, Plus, Radio } from 'lucide-react';
+import { Heart, MessageCircle, Send, Radio } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import CreatePostModal from '@/components/mobile/CreatePostModal';
+import EditPostModal from '@/components/mobile/EditPostModal';
 import LiveStreamModal from '@/components/mobile/LiveStreamModal';
 import PostOptionsMenu from '@/components/PostOptionsMenu';
 
@@ -90,14 +90,8 @@ export default function Feed() {
     console.log('Share post', postId);
   };
   
-  const handleEditPost = (postId: number) => {
+  const handleOptionsMenu = (postId: number) => {
     setSelectedPostId(postId);
-    setEditModalOpen(true);
-  };
-  
-  const handleDeletePost = (postId: number) => {
-    setSelectedPostId(postId);
-    setDeleteDialogOpen(true);
   };
   
   const confirmDeletePost = () => {
@@ -130,8 +124,14 @@ export default function Feed() {
               onLike={handleLikePost}
               onComment={handleCommentPost}
               onShare={handleSharePost}
-              onOptions={(id) => {
-                console.log('Options clicked for post', id);
+              onOptions={handleOptionsMenu}
+              onEdit={() => {
+                setSelectedPostId(post.id);
+                setEditModalOpen(true);
+              }}
+              onDelete={() => {
+                setSelectedPostId(post.id);
+                setDeleteDialogOpen(true);
               }}
             />
           ))
@@ -158,6 +158,18 @@ export default function Feed() {
         isOpen={isLiveStreamModalOpen}
         onClose={() => setIsLiveStreamModalOpen(false)}
       />
+      
+      {/* Edit post modal */}
+      {selectedPostId && (
+        <EditPostModal
+          isOpen={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          postId={selectedPostId}
+          initialCaption={posts?.find(p => p.id === selectedPostId)?.caption || ''}
+          mediaUrl={posts?.find(p => p.id === selectedPostId)?.mediaUrl}
+          mediaType={posts?.find(p => p.id === selectedPostId)?.mediaType}
+        />
+      )}
       
       {/* Confirmation dialog for post deletion */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -189,9 +201,11 @@ interface PostItemProps {
   onComment: (postId: number) => void;
   onShare: (postId: number) => void;
   onOptions: (postId: number) => void;
+  onEdit: (postId: number) => void;
+  onDelete: (postId: number) => void;
 }
 
-function PostItem({ post, onLike, onComment, onShare, onOptions }: PostItemProps) {
+function PostItem({ post, onLike, onComment, onShare, onOptions, onEdit, onDelete }: PostItemProps) {
   const { toast } = useToast();
   const formatTimestamp = (date: Date | null) => {
     if (!date) return 'Unknown date';
@@ -228,9 +242,9 @@ function PostItem({ post, onLike, onComment, onShare, onOptions }: PostItemProps
         <PostOptionsMenu
           postId={post.id}
           isOwner={post.userId === CURRENT_USER_ID}
-          onEdit={onOptions}
-          onDelete={onOptions}
-          onShare={onShare}
+          onEdit={() => post.userId === CURRENT_USER_ID && onEdit(post.id)}
+          onDelete={() => post.userId === CURRENT_USER_ID && onDelete(post.id)}
+          onShare={() => onShare(post.id)}
           onCopyLink={(id) => {
             navigator.clipboard.writeText(`${window.location.origin}/post/${id}`);
             toast({
