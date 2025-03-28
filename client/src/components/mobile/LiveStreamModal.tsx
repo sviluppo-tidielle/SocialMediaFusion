@@ -1,10 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
+import Webcam from 'react-webcam';
+import { useMutation } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Loader2, Video, Mic, X, Radio, Users } from 'lucide-react';
-import { Textarea } from '@/components/ui/textarea';
+import { Loader2, Radio, X, Mic, MicOff, Camera, CameraOff, Send } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 interface LiveStreamModalProps {
   isOpen: boolean;
@@ -13,248 +21,294 @@ interface LiveStreamModalProps {
 
 const LiveStreamModal = ({ isOpen, onClose }: LiveStreamModalProps) => {
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [streamTitle, setStreamTitle] = useState('');
-  const [streamDescription, setStreamDescription] = useState('');
-  const [viewerCount, setViewerCount] = useState(0);
-  const [cameraAvailable, setCameraAvailable] = useState(true);
-  const [countdown, setCountdown] = useState<number | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [viewers, setViewers] = useState(0);
+  const [streamStartTime, setStreamStartTime] = useState<Date | null>(null);
   
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const webcamRef = useRef<Webcam>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const { toast } = useToast();
-
-  // Verifica iniziale della disponibilità della fotocamera
+  
+  // Verifica la disponibilità della fotocamera all'apertura del modale
   useEffect(() => {
-    const checkCameraAvailability = async () => {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === 'videoinput');
-        setCameraAvailable(videoDevices.length > 0);
-      } catch (err) {
-        console.error('Error checking camera availability:', err);
-        setCameraAvailable(false);
-      }
-    };
-    
     if (isOpen) {
       checkCameraAvailability();
+    } else {
+      // Quando il modale si chiude, assicuriamoci di fermare lo streaming
+      stopStreaming();
     }
   }, [isOpen]);
-
-  // Inizializza la fotocamera quando il componente viene aperto
-  useEffect(() => {
-    if (isOpen && !isStreaming && cameraAvailable) {
-      startCamera();
-    }
-    
-    return () => {
-      stopCamera();
-    };
-  }, [isOpen, cameraAvailable]);
-
-  const startCamera = async () => {
+  
+  const checkCameraAvailability = async () => {
+    setCameraError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const hasCamera = devices.some(device => device.kind === 'videoinput');
+      
+      if (!hasCamera) {
+        setCameraError('Nessuna fotocamera trovata sul dispositivo');
+        return false;
+      }
+      
+      // Prova ad accedere alla fotocamera
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
       });
       
-      streamRef.current = stream;
+      // Memorizza lo stream per poterlo fermare più tardi
+      mediaStreamRef.current = stream;
       
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      console.error('Errore accesso fotocamera:', err);
-      setCameraAvailable(false);
+      return true;
+    } catch (error) {
+      console.error('Errore accesso alla fotocamera:', error);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Impossibile accedere alla fotocamera';
+        
+      setCameraError(`Errore: ${errorMessage}`);
+      return false;
+    }
+  };
+  
+  // Mock di una mutazione per avviare lo streaming
+  const startStreamMutation = useMutation({
+    mutationFn: async (data: { title: string }) => {
+      // Nella versione reale, qui si connettrebbe a un servizio di streaming
+      // e invierebbe lo stream video/audio
+      
+      // Simulazione di una chiamata API
+      const response = await new Promise(resolve => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            streamId: 'stream_' + Math.random().toString(36).substring(2, 9),
+            serverUrl: 'rtmp://streaming.server.example/live'
+          });
+        }, 1500);
+      });
+      
+      return response;
+    },
+    onSuccess: () => {
+      setIsStreaming(true);
+      setStreamStartTime(new Date());
+      
+      // Simulare un incremento graduale degli spettatori
+      const interval = setInterval(() => {
+        setViewers(prev => {
+          const increment = Math.floor(Math.random() * 3);
+          return prev + increment;
+        });
+      }, 10000);
+      
+      // Pulire l'intervallo quando il componente viene smontato
+      return () => clearInterval(interval);
+    },
+    onError: (error) => {
       toast({
-        title: 'Fotocamera non disponibile',
-        description: 'Verifica le autorizzazioni della fotocamera nelle impostazioni del browser.',
+        title: "Errore nell'avvio della diretta",
+        description: String(error),
         variant: 'destructive'
       });
     }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
+  });
+  
+  // Mutation per terminare lo streaming
+  const endStreamMutation = useMutation({
+    mutationFn: async () => {
+      // Simulazione di una chiamata API
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return { success: true };
+    },
+    onSuccess: () => {
+      stopStreaming();
+      toast({
+        title: 'Diretta terminata',
+        description: 'La tua diretta è stata terminata con successo.'
+      });
     }
-    
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  };
-
-  const startLiveStream = () => {
+  });
+  
+  const startStreaming = async () => {
     if (!streamTitle.trim()) {
       toast({
         title: 'Titolo richiesto',
-        description: 'Inserisci un titolo per la tua diretta.',
+        description: 'Inserisci un titolo per la tua diretta',
         variant: 'destructive'
       });
       return;
     }
     
-    // Avvia il countdown
-    setCountdown(3);
+    const cameraAvailable = await checkCameraAvailability();
+    if (!cameraAvailable) return;
     
-    // Simula l'inizio del livestream dopo il countdown
-    const countdownInterval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev === null || prev <= 1) {
-          clearInterval(countdownInterval);
-          setIsStreaming(true);
-          simulateViewers();
-          return null;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    startStreamMutation.mutate({ title: streamTitle });
   };
-
-  const stopLiveStream = () => {
-    setIsStreaming(false);
-    setViewerCount(0);
-    
-    toast({
-      title: 'Diretta terminata',
-      description: `La tua diretta è stata conclusa con successo.`,
-    });
-  };
-
-  // Simula un aumento graduale dei visualizzatori per scopi dimostrativi
-  const simulateViewers = () => {
-    let count = 0;
-    const interval = setInterval(() => {
-      count += Math.floor(Math.random() * 3) + 1;
-      setViewerCount(count);
-      
-      if (!isStreaming || count > 50) {
-        clearInterval(interval);
-      }
-    }, 5000);
-  };
-
-  const handleCloseModal = () => {
+  
+  const stopStreaming = () => {
+    // Fermare lo streaming e ripulire
     if (isStreaming) {
-      if (window.confirm('Sei sicuro di voler terminare la diretta?')) {
-        stopLiveStream();
-        onClose();
-      }
-    } else {
-      onClose();
+      endStreamMutation.mutate();
+    }
+    
+    // Fermare i flussi multimediali
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    
+    setIsStreaming(false);
+    setStreamStartTime(null);
+    setViewers(0);
+  };
+  
+  const toggleAudio = () => {
+    if (mediaStreamRef.current) {
+      const audioTracks = mediaStreamRef.current.getAudioTracks();
+      audioTracks.forEach(track => {
+        track.enabled = !track.enabled;
+      });
+      setIsAudioMuted(!isAudioMuted);
     }
   };
-
+  
+  const toggleVideo = () => {
+    if (mediaStreamRef.current) {
+      const videoTracks = mediaStreamRef.current.getVideoTracks();
+      videoTracks.forEach(track => {
+        track.enabled = !track.enabled;
+      });
+      setIsVideoEnabled(!isVideoEnabled);
+    }
+  };
+  
+  // Calcola la durata dello streaming
+  const getStreamDuration = () => {
+    if (!streamStartTime) return '00:00';
+    
+    const now = new Date();
+    const diffMs = now.getTime() - streamStartTime.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffSec = Math.floor((diffMs % 60000) / 1000);
+    
+    return `${diffMin.toString().padStart(2, '0')}:${diffSec.toString().padStart(2, '0')}`;
+  };
+  
   return (
-    <Dialog open={isOpen} onOpenChange={open => !open && handleCloseModal()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isStreaming ? 'Live in corso' : 'Inizia una diretta'}
+            {isStreaming ? 'In diretta' : 'Inizia una diretta'}
           </DialogTitle>
           <DialogDescription>
             {isStreaming 
-              ? 'Stai trasmettendo in diretta. I tuoi follower possono vederti ora.'
-              : 'Condividi un momento live con i tuoi follower.'}
+              ? `Durata: ${getStreamDuration()} | Spettatori: ${viewers}`
+              : 'Trasmetti in diretta ai tuoi follower'}
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
-          {cameraAvailable ? (
-            <div className="relative aspect-video bg-black rounded-md overflow-hidden">
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                muted={!isStreaming}
-                className="w-full h-full object-cover"
-              />
-              
-              {isStreaming && (
-                <div className="absolute top-2 left-2 flex items-center gap-2 bg-red-500 px-2 py-1 rounded-full text-white text-xs">
-                  <Radio className="h-3 w-3 animate-pulse" />
-                  <span>LIVE</span>
-                </div>
-              )}
-              
-              {isStreaming && (
-                <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/70 px-2 py-1 rounded-full text-white text-xs">
-                  <Users className="h-3 w-3" />
-                  <span>{viewerCount}</span>
-                </div>
-              )}
-              
-              {countdown !== null && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                  <span className="text-6xl font-bold text-white">{countdown}</span>
-                </div>
-              )}
+          {cameraError ? (
+            <div className="p-6 rounded-md bg-red-50 text-red-600 text-center">
+              <p>{cameraError}</p>
+              <Button 
+                className="mt-4"
+                onClick={checkCameraAvailability}
+              >
+                Riprova
+              </Button>
             </div>
           ) : (
-            <div className="aspect-video bg-slate-100 rounded-md flex flex-col items-center justify-center p-4">
-              <Video className="h-16 w-16 text-slate-400 mb-4" />
-              <p className="text-sm text-slate-500 mb-4 text-center">
-                La fotocamera non è disponibile. Verifica che il tuo dispositivo abbia una fotocamera e che il browser abbia il permesso di accedervi.
-              </p>
-              <p className="text-sm text-slate-500 mb-4 text-center">
-                Su Windows, verifica nelle impostazioni di privacy che il browser abbia l'autorizzazione ad accedere alla fotocamera e al microfono.
-              </p>
-            </div>
-          )}
-          
-          {!isStreaming && (
             <>
-              <Input
-                placeholder="Titolo della diretta"
-                value={streamTitle}
-                onChange={(e) => setStreamTitle(e.target.value)}
-                disabled={!cameraAvailable}
-                className="w-full"
-              />
+              {/* Preview webcam */}
+              <div className="relative bg-black rounded-md overflow-hidden aspect-video">
+                <Webcam
+                  ref={webcamRef}
+                  audio={true}
+                  mirrored={true}
+                  className="w-full h-full object-cover"
+                  videoConstraints={{
+                    facingMode: "user"
+                  }}
+                />
+                
+                {/* Streaming indicator */}
+                {isStreaming && (
+                  <div className="absolute top-2 left-2 px-2 py-1 bg-red-600 text-white rounded-md flex items-center">
+                    <Radio className="h-4 w-4 mr-1 animate-pulse" />
+                    <span className="text-xs font-semibold">LIVE</span>
+                  </div>
+                )}
+                
+                {/* Streaming controls overlay */}
+                <div className="absolute bottom-2 right-2 flex space-x-2">
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="rounded-full bg-black bg-opacity-50 hover:bg-opacity-70"
+                    onClick={toggleAudio}
+                  >
+                    {isAudioMuted ? (
+                      <MicOff className="h-4 w-4 text-white" />
+                    ) : (
+                      <Mic className="h-4 w-4 text-white" />
+                    )}
+                  </Button>
+                  
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="rounded-full bg-black bg-opacity-50 hover:bg-opacity-70"
+                    onClick={toggleVideo}
+                  >
+                    {isVideoEnabled ? (
+                      <Camera className="h-4 w-4 text-white" />
+                    ) : (
+                      <CameraOff className="h-4 w-4 text-white" />
+                    )}
+                  </Button>
+                </div>
+              </div>
               
-              <Textarea
-                placeholder="Descrizione (opzionale)"
-                value={streamDescription}
-                onChange={(e) => setStreamDescription(e.target.value)}
-                disabled={!cameraAvailable}
-                className="resize-none h-20"
-              />
+              {/* Stream Title Input (only visible before streaming starts) */}
+              {!isStreaming && (
+                <input
+                  type="text"
+                  value={streamTitle}
+                  onChange={(e) => setStreamTitle(e.target.value)}
+                  placeholder="Titolo della diretta..."
+                  className="w-full p-2 border rounded-md"
+                />
+              )}
             </>
           )}
         </div>
         
         <DialogFooter className="flex justify-between">
-          {isStreaming ? (
+          {!isStreaming ? (
             <>
               <Button
-                type="button"
-                variant="destructive"
-                onClick={stopLiveStream}
+                variant="outline"
+                onClick={onClose}
               >
-                <X className="mr-2 h-4 w-4" />
-                Termina diretta
+                Annulla
               </Button>
-            </>
-          ) : (
-            <>
-              <DialogClose asChild>
-                <Button type="button" variant="outline">
-                  Annulla
-                </Button>
-              </DialogClose>
               
-              <Button
-                type="button"
-                onClick={startLiveStream}
-                disabled={!cameraAvailable || countdown !== null}
+              <Button 
+                variant="destructive"
                 className="bg-red-600 hover:bg-red-700"
+                onClick={startStreaming}
+                disabled={startStreamMutation.isPending || !!cameraError}
               >
-                {countdown !== null ? (
+                {startStreamMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Iniziando...
+                    Avvio...
                   </>
                 ) : (
                   <>
@@ -262,6 +316,31 @@ const LiveStreamModal = ({ isOpen, onClose }: LiveStreamModalProps) => {
                     Inizia diretta
                   </>
                 )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button 
+                variant="destructive"
+                onClick={stopStreaming}
+                disabled={endStreamMutation.isPending}
+              >
+                {endStreamMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Terminando...
+                  </>
+                ) : (
+                  <>
+                    <X className="mr-2 h-4 w-4" />
+                    Termina diretta
+                  </>
+                )}
+              </Button>
+              
+              <Button variant="default" className="bg-primary">
+                <Send className="mr-2 h-4 w-4" />
+                Invia messaggio
               </Button>
             </>
           )}
