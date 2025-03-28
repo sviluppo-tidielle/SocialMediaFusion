@@ -4,10 +4,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { PostWithUser } from '@shared/schema';
 import { useTab } from '@/hooks/use-tab';
-import { Heart, MessageCircle, Send, MoreHorizontal, Plus } from 'lucide-react';
+import { Heart, MessageCircle, Send, MoreHorizontal, Plus, Radio, Camera, Video } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import CreatePostModal from '@/components/mobile/CreatePostModal';
+import LiveStreamModal from '@/components/mobile/LiveStreamModal';
 
 // Mock current user id until auth is implemented
 const CURRENT_USER_ID = 1;
@@ -16,6 +17,7 @@ export default function Feed() {
   const { setActiveTab } = useTab();
   const queryClient = useQueryClient();
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
+  const [isLiveStreamModalOpen, setIsLiveStreamModalOpen] = useState(false);
   
   // Set the active tab when this component mounts
   useEffect(() => {
@@ -90,8 +92,18 @@ export default function Feed() {
         )}
       </div>
       
-      {/* Floating action button for creating new post */}
-      <div className="fixed bottom-20 right-4 z-10">
+      {/* Action buttons for creating content */}
+      <div className="fixed bottom-20 right-4 z-10 flex flex-col gap-3">
+        {/* Live streaming button */}
+        <Button 
+          className="rounded-full w-14 h-14 shadow-lg bg-red-600 hover:bg-red-700"
+          onClick={() => setIsLiveStreamModalOpen(true)}
+          aria-label="Inizia una diretta"
+        >
+          <Radio className="h-6 w-6" />
+        </Button>
+        
+        {/* Create post button */}
         <Button 
           className="rounded-full w-14 h-14 shadow-lg"
           onClick={() => setIsCreatePostModalOpen(true)}
@@ -105,6 +117,12 @@ export default function Feed() {
       <CreatePostModal 
         isOpen={isCreatePostModalOpen} 
         onClose={() => setIsCreatePostModalOpen(false)} 
+      />
+      
+      {/* Live stream modal */}
+      <LiveStreamModal
+        isOpen={isLiveStreamModalOpen}
+        onClose={() => setIsLiveStreamModalOpen(false)}
       />
     </div>
   );
