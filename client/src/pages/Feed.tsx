@@ -29,7 +29,6 @@ export default function Feed() {
   const { setActiveTab } = useTab();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
   const [isLiveStreamModalOpen, setIsLiveStreamModalOpen] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -142,33 +141,6 @@ export default function Feed() {
           </div>
         )}
       </div>
-      
-      {/* Action buttons for creating content */}
-      <div className="fixed bottom-20 right-4 z-10 flex flex-col gap-3">
-        {/* Live streaming button */}
-        <Button 
-          className="rounded-full w-14 h-14 shadow-lg bg-red-600 hover:bg-red-700"
-          onClick={() => setIsLiveStreamModalOpen(true)}
-          aria-label="Inizia una diretta"
-        >
-          <Radio className="h-6 w-6" />
-        </Button>
-        
-        {/* Create post button */}
-        <Button 
-          className="rounded-full w-14 h-14 shadow-lg"
-          onClick={() => setIsCreatePostModalOpen(true)}
-          aria-label="Crea un nuovo post"
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
-      </div>
-      
-      {/* Create post modal */}
-      <CreatePostModal 
-        isOpen={isCreatePostModalOpen} 
-        onClose={() => setIsCreatePostModalOpen(false)} 
-      />
       
       {/* Live stream modal */}
       <LiveStreamModal
