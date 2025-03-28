@@ -1,11 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { PostWithUser } from '@shared/schema';
 import { useTab } from '@/hooks/use-tab';
-import { Heart, MessageCircle, Send, MoreHorizontal } from 'lucide-react';
+import { Heart, MessageCircle, Send, MoreHorizontal, Plus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import CreatePostModal from '@/components/mobile/CreatePostModal';
 
 // Mock current user id until auth is implemented
 const CURRENT_USER_ID = 1;
@@ -13,6 +15,7 @@ const CURRENT_USER_ID = 1;
 export default function Feed() {
   const { setActiveTab } = useTab();
   const queryClient = useQueryClient();
+  const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
   
   // Set the active tab when this component mounts
   useEffect(() => {
@@ -67,23 +70,42 @@ export default function Feed() {
   }
 
   return (
-    <div className="post-feed overflow-y-auto" id="feedContent">
-      {posts && posts.length > 0 ? (
-        posts.map((post) => (
-          <PostItem 
-            key={post.id} 
-            post={post} 
-            onLike={handleLikePost}
-            onComment={handleCommentPost}
-            onShare={handleSharePost}
-            onOptions={handlePostOptions}
-          />
-        ))
-      ) : (
-        <div className="p-8 text-center">
-          <p className="text-slate-500">No posts yet. Follow more users to see their content.</p>
-        </div>
-      )}
+    <div className="relative">
+      <div className="post-feed overflow-y-auto pb-16" id="feedContent">
+        {posts && posts.length > 0 ? (
+          posts.map((post) => (
+            <PostItem 
+              key={post.id} 
+              post={post} 
+              onLike={handleLikePost}
+              onComment={handleCommentPost}
+              onShare={handleSharePost}
+              onOptions={handlePostOptions}
+            />
+          ))
+        ) : (
+          <div className="p-8 text-center">
+            <p className="text-slate-500">Non ci sono ancora post. Segui altri utenti per vedere i loro contenuti.</p>
+          </div>
+        )}
+      </div>
+      
+      {/* Floating action button for creating new post */}
+      <div className="fixed bottom-20 right-4 z-10">
+        <Button 
+          className="rounded-full w-14 h-14 shadow-lg"
+          onClick={() => setIsCreatePostModalOpen(true)}
+          aria-label="Crea un nuovo post"
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      </div>
+      
+      {/* Create post modal */}
+      <CreatePostModal 
+        isOpen={isCreatePostModalOpen} 
+        onClose={() => setIsCreatePostModalOpen(false)} 
+      />
     </div>
   );
 }

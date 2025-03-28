@@ -213,9 +213,15 @@ export default function EditProfile() {
   });
   
   const handleProfileImageSelected = (imageFile: File, preview: string) => {
+    // Crea un FormData e aggiungi il file
     const formData = new FormData();
     formData.append('file', imageFile);
+    
+    // Esegui la mutation di upload
     uploadProfileImageMutation.mutate(formData);
+    
+    // Mostra l'anteprima in attesa dell'upload completato
+    setProfilePicture(preview);
   };
   
   return (

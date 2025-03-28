@@ -1,426 +1,393 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { X, Camera, Image, Mic, Video, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import Webcam from 'react-webcam';
-import ReactPlayer from 'react-player';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Camera, Video, Image, Mic, X, RotateCcw } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
-export type MediaType = 'photo' | 'video' | 'audio' | 'gallery';
-
-export type MediaFile = {
+export interface MediaFile {
   file: File;
   preview: string;
-  type: MediaType;
-};
+  type: 'photo' | 'video' | 'audio' | 'gallery';
+}
 
 interface MediaCaptureProps {
   onCapture: (media: MediaFile) => void;
   onClose: () => void;
-  allowedTypes?: MediaType[];
-  aspectRatio?: number; // width/height ratio
+  allowedTypes?: Array<'photo' | 'video' | 'audio' | 'gallery'>;
+  aspectRatio?: number;
 }
 
-const MediaCapture: React.FC<MediaCaptureProps> = ({ 
-  onCapture, 
-  onClose, 
-  allowedTypes = ['photo', 'video', 'audio', 'gallery'],
+const MediaCapture: React.FC<MediaCaptureProps> = ({
+  onCapture,
+  onClose,
+  allowedTypes = ['photo', 'gallery'],
   aspectRatio = 1
 }) => {
-  const [activeType, setActiveType] = useState<MediaType>(allowedTypes[0] || 'photo');
+  const [activeTab, setActiveTab] = useState<string>(allowedTypes[0] || 'photo');
   const [isRecording, setIsRecording] = useState(false);
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
-  const [recordedMedia, setRecordedMedia] = useState<string | null>(null);
-  const [audioRecorder, setAudioRecorder] = useState<MediaRecorder | null>(null);
-  const [videoRecorder, setVideoRecorder] = useState<MediaRecorder | null>(null);
-  const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user');
-  
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
+  const [audioRecording, setAudioRecording] = useState<boolean>(false);
   const webcamRef = useRef<Webcam>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioRecorderRef = useRef<MediaRecorder | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Calcola dimensioni del video in base all'aspect ratio
-  const videoConstraints = {
-    width: aspectRatio >= 1 ? 720 : 720 * aspectRatio,
-    height: aspectRatio >= 1 ? 720 / aspectRatio : 720,
-    facingMode: cameraFacingMode
-  };
+  const { toast } = useToast();
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      const fileType = file.type.startsWith('image/') ? 'photo' : 
-                       file.type.startsWith('video/') ? 'video' : 
-                       file.type.startsWith('audio/') ? 'audio' : 'unknown';
-      
-      const mediaFile: MediaFile = {
-        file,
-        preview: URL.createObjectURL(file),
-        type: 'gallery'
-      };
-      
-      onCapture(mediaFile);
-    }
-  };
+  // Helper to create a File from a Blob
+  const createFileFromBlob = useCallback((blob: Blob, type: string, extension: string) => {
+    const now = new Date();
+    const fileName = `${type}_${now.getTime()}.${extension}`;
+    return new File([blob], fileName, { type: blob.type });
+  }, []);
 
+  // Capture photo from webcam
   const capturePhoto = useCallback(() => {
     if (webcamRef.current) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
-        // Converti il data URL in un file
+        // Convert base64 to blob
         fetch(imageSrc)
           .then(res => res.blob())
           .then(blob => {
-            const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
-            const mediaFile: MediaFile = {
+            const file = createFileFromBlob(blob, 'photo', 'jpg');
+            onCapture({
               file,
               preview: imageSrc,
               type: 'photo'
-            };
-            onCapture(mediaFile);
+            });
+          })
+          .catch(err => {
+            console.error('Error capturing photo:', err);
+            toast({
+              title: 'Errore',
+              description: 'Impossibile acquisire la foto. Riprova.',
+              variant: 'destructive',
+            });
           });
       }
     }
-  }, [webcamRef, onCapture]);
+  }, [webcamRef, onCapture, createFileFromBlob, toast]);
 
-  const handleDataAvailable = useCallback(({ data }: BlobEvent) => {
-    if (data.size > 0) {
-      setRecordedChunks(prev => [...prev, data]);
-    }
-  }, []);
-
-  const startRecording = useCallback(() => {
-    setRecordedChunks([]);
-    setIsRecording(true);
-    setRecordedMedia(null);
-
-    if (activeType === 'video' && webcamRef.current && webcamRef.current.stream) {
-      const stream = webcamRef.current.stream;
-      const recorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm'
+  // Start video recording
+  const handleStartRecording = useCallback(() => {
+    if (webcamRef.current && webcamRef.current.stream) {
+      setRecordedChunks([]);
+      mediaRecorderRef.current = new MediaRecorder(webcamRef.current.stream, {
+        mimeType: 'video/webm',
       });
       
-      recorder.addEventListener('dataavailable', handleDataAvailable);
-      recorder.start();
+      mediaRecorderRef.current.addEventListener('dataavailable', ({ data }) => {
+        if (data.size > 0) {
+          setRecordedChunks(prev => [...prev, data]);
+        }
+      });
       
-      mediaRecorderRef.current = recorder;
-      setVideoRecorder(recorder);
-    } else if (activeType === 'audio') {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => {
-          const recorder = new MediaRecorder(stream);
-          recorder.addEventListener('dataavailable', handleDataAvailable);
-          recorder.start();
-          
-          mediaRecorderRef.current = recorder;
-          setAudioRecorder(recorder);
-        })
-        .catch(err => console.error('Errore nell\'accesso al microfono:', err));
+      mediaRecorderRef.current.addEventListener('stop', () => {
+        // Recording stopped, handle the chunks
+      });
+      
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
     }
-  }, [activeType, handleDataAvailable]);
+  }, [webcamRef, setRecordedChunks]);
 
-  const stopRecording = useCallback(() => {
-    setIsRecording(false);
-    
-    if (activeType === 'video' && videoRecorder) {
-      videoRecorder.stop();
-    } else if (activeType === 'audio' && audioRecorder) {
-      audioRecorder.stop();
+  // Stop video recording
+  const handleStopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
     }
-  }, [activeType, videoRecorder, audioRecorder]);
+  }, [mediaRecorderRef, isRecording]);
 
-  const toggleCameraFacing = useCallback(() => {
-    setCameraFacingMode(prev => prev === 'user' ? 'environment' : 'user');
-  }, []);
-
-  // Gestisce la creazione del file dopo che la registrazione è terminata
+  // Process recorded video
   useEffect(() => {
     if (recordedChunks.length > 0 && !isRecording) {
-      const blob = new Blob(recordedChunks, {
-        type: activeType === 'video' ? 'video/webm' : 'audio/webm'
-      });
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const file = createFileFromBlob(blob, 'video', 'webm');
+      const videoURL = URL.createObjectURL(blob);
       
-      const url = URL.createObjectURL(blob);
-      setRecordedMedia(url);
-      
-      const fileName = `${activeType}-${Date.now()}.webm`;
-      const file = new File([blob], fileName, { 
-        type: activeType === 'video' ? 'video/webm' : 'audio/webm'
-      });
-      
-      const mediaFile: MediaFile = {
+      onCapture({
         file,
-        preview: url,
-        type: activeType
+        preview: videoURL,
+        type: 'video'
+      });
+      
+      setRecordedChunks([]);
+    }
+  }, [recordedChunks, isRecording, onCapture, createFileFromBlob]);
+
+  // Start audio recording
+  const startAudioRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setAudioStream(stream);
+      
+      const recorder = new MediaRecorder(stream);
+      const audioChunks: Blob[] = [];
+      
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunks.push(e.data);
+        }
       };
       
-      if (recordedChunks.length > 1) { // Assicuriamoci che ci sia abbastanza dati
-        onCapture(mediaFile);
-      }
+      recorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        const audioFile = createFileFromBlob(audioBlob, 'audio', 'wav');
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        onCapture({
+          file: audioFile,
+          preview: audioUrl,
+          type: 'audio'
+        });
+        
+        if (audioStream) {
+          audioStream.getTracks().forEach(track => track.stop());
+          setAudioStream(null);
+        }
+      };
+      
+      audioRecorderRef.current = recorder;
+      recorder.start();
+      setAudioRecording(true);
+    } catch (err) {
+      console.error('Error accessing microphone:', err);
+      toast({
+        title: 'Errore',
+        description: 'Impossibile accedere al microfono. Verifica le autorizzazioni.',
+        variant: 'destructive',
+      });
     }
-  }, [recordedChunks, isRecording, activeType, onCapture]);
+  }, [onCapture, createFileFromBlob, toast]);
 
-  // Pulisce le risorse quando il componente viene smontato
-  useEffect(() => {
-    return () => {
-      if (videoRecorder && videoRecorder.state === 'recording') {
-        videoRecorder.stop();
-      }
-      if (audioRecorder && audioRecorder.state === 'recording') {
-        audioRecorder.stop();
-      }
-      if (recordedMedia) {
-        URL.revokeObjectURL(recordedMedia);
-      }
-    };
-  }, [videoRecorder, audioRecorder, recordedMedia]);
-
-  const renderMediaCaptureContent = () => {
-    switch (activeType) {
-      case 'photo':
-        return (
-          <div className="relative">
-            <Webcam
-              audio={false}
-              ref={webcamRef}
-              screenshotFormat="image/jpeg"
-              videoConstraints={videoConstraints}
-              className="w-full h-full object-cover rounded-lg"
-            />
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4">
-              <Button 
-                onClick={toggleCameraFacing} 
-                size="icon" 
-                className="bg-white/20 backdrop-blur-md text-white hover:bg-white/30 rounded-full"
-              >
-                <Camera className="h-6 w-6" />
-              </Button>
-              
-              <Button 
-                onClick={capturePhoto} 
-                size="icon" 
-                className="bg-white text-primary hover:bg-white/90 h-14 w-14 rounded-full"
-              >
-                <Camera className="h-6 w-6" />
-              </Button>
-            </div>
-          </div>
-        );
-      
-      case 'video':
-        return (
-          <div className="relative">
-            <Webcam
-              audio={true}
-              ref={webcamRef}
-              screenshotFormat="image/jpeg"
-              videoConstraints={videoConstraints}
-              className="w-full h-full object-cover rounded-lg"
-            />
-            
-            {recordedMedia && !isRecording && (
-              <div className="absolute inset-0 bg-black rounded-lg">
-                <ReactPlayer
-                  url={recordedMedia}
-                  width="100%"
-                  height="100%"
-                  controls
-                />
-                <Button 
-                  onClick={() => onCapture({
-                    file: new File(
-                      [new Blob(recordedChunks, { type: 'video/webm' })], 
-                      `video-${Date.now()}.webm`, 
-                      { type: 'video/webm' }
-                    ),
-                    preview: recordedMedia,
-                    type: 'video'
-                  })} 
-                  className="absolute bottom-4 right-4 bg-green-500 hover:bg-green-600"
-                >
-                  <Check className="mr-2 h-4 w-4" /> Conferma
-                </Button>
-              </div>
-            )}
-            
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4">
-              <Button 
-                onClick={toggleCameraFacing} 
-                size="icon" 
-                className="bg-white/20 backdrop-blur-md text-white hover:bg-white/30 rounded-full"
-              >
-                <Camera className="h-6 w-6" />
-              </Button>
-              
-              {isRecording ? (
-                <Button 
-                  onClick={stopRecording} 
-                  size="icon" 
-                  className="bg-red-500 text-white hover:bg-red-600 h-14 w-14 rounded-full"
-                >
-                  <div className="h-4 w-4 bg-white rounded-sm"></div>
-                </Button>
-              ) : (
-                <Button 
-                  onClick={startRecording} 
-                  size="icon" 
-                  className="bg-red-500 text-white hover:bg-red-600 h-14 w-14 rounded-full"
-                >
-                  <Video className="h-6 w-6" />
-                </Button>
-              )}
-            </div>
-          </div>
-        );
-      
-      case 'audio':
-        return (
-          <div className="flex flex-col items-center justify-center p-8 h-full">
-            <div className="w-32 h-32 mb-6 relative">
-              <div className={`w-full h-full rounded-full border-4 ${isRecording ? 'border-red-500 animate-pulse' : 'border-primary'} flex items-center justify-center`}>
-                <Mic className={`h-12 w-12 ${isRecording ? 'text-red-500' : 'text-primary'}`} />
-              </div>
-            </div>
-            
-            {recordedMedia && !isRecording && (
-              <div className="w-full mb-6">
-                <ReactPlayer
-                  url={recordedMedia}
-                  width="100%"
-                  height="50px"
-                  controls
-                />
-                <Button 
-                  onClick={() => onCapture({
-                    file: new File(
-                      [new Blob(recordedChunks, { type: 'audio/webm' })], 
-                      `audio-${Date.now()}.webm`, 
-                      { type: 'audio/webm' }
-                    ),
-                    preview: recordedMedia,
-                    type: 'audio'
-                  })} 
-                  className="mt-4 bg-green-500 hover:bg-green-600 w-full"
-                >
-                  <Check className="mr-2 h-4 w-4" /> Conferma registrazione
-                </Button>
-              </div>
-            )}
-            
-            {isRecording ? (
-              <Button 
-                onClick={stopRecording} 
-                className="bg-red-500 hover:bg-red-600 text-white"
-              >
-                Ferma registrazione
-              </Button>
-            ) : (
-              <Button 
-                onClick={startRecording} 
-                className="bg-primary hover:bg-primary/90"
-              >
-                Inizia registrazione
-              </Button>
-            )}
-          </div>
-        );
-      
-      case 'gallery':
-        return (
-          <div className="flex flex-col items-center justify-center p-8 h-full">
-            <div 
-              className="border-2 border-dashed border-primary rounded-lg p-8 w-full h-48 mb-6 flex items-center justify-center cursor-pointer"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <div className="text-center">
-                <Image className="mx-auto h-12 w-12 text-primary mb-2" />
-                <p className="text-sm text-slate-600">Clicca per selezionare un file dalla galleria</p>
-              </div>
-            </div>
-            
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept="image/*,video/*,audio/*"
-              onChange={handleFileSelect}
-            />
-            
-            <Button 
-              onClick={() => fileInputRef.current?.click()} 
-              className="bg-primary hover:bg-primary/90"
-            >
-              Sfoglia galleria
-            </Button>
-          </div>
-        );
-      
-      default:
-        return null;
+  // Stop audio recording
+  const stopAudioRecording = useCallback(() => {
+    if (audioRecorderRef.current && audioRecording) {
+      audioRecorderRef.current.stop();
+      setAudioRecording(false);
     }
+  }, [audioRecording]);
+
+  // Handle file selection from gallery
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    const fileURL = URL.createObjectURL(file);
+    let mediaType: 'photo' | 'video' | 'audio' | 'gallery' = 'gallery';
+    
+    // Determine file type based on MIME type
+    if (file.type.startsWith('image/')) {
+      mediaType = 'photo';
+    } else if (file.type.startsWith('video/')) {
+      mediaType = 'video';
+    } else if (file.type.startsWith('audio/')) {
+      mediaType = 'audio';
+    }
+    
+    onCapture({
+      file,
+      preview: fileURL,
+      type: mediaType
+    });
   };
 
+  // Clean up streams when component unmounts
+  useEffect(() => {
+    return () => {
+      if (audioStream) {
+        audioStream.getTracks().forEach(track => track.stop());
+      }
+      
+      if (webcamRef.current && webcamRef.current.stream) {
+        webcamRef.current.stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [audioStream]);
+
+  // Render the MediaCapture UI based on active tab
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl overflow-hidden shadow-2xl w-full max-w-lg">
-        <div className="flex justify-between items-center p-4 border-b">
-          <h2 className="text-lg font-medium">Cattura media</h2>
+    <Dialog open={true} onOpenChange={() => onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {activeTab === 'photo' && 'Scatta una foto'}
+            {activeTab === 'video' && 'Registra un video'}
+            {activeTab === 'audio' && 'Registra audio'}
+            {activeTab === 'gallery' && 'Seleziona dalla galleria'}
+          </DialogTitle>
+        </DialogHeader>
+        
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid" style={{ gridTemplateColumns: `repeat(${allowedTypes.length}, 1fr)` }}>
+            {allowedTypes.includes('photo') && (
+              <TabsTrigger value="photo">
+                <Camera className="h-4 w-4 mr-2" />
+                Foto
+              </TabsTrigger>
+            )}
+            {allowedTypes.includes('video') && (
+              <TabsTrigger value="video">
+                <Video className="h-4 w-4 mr-2" />
+                Video
+              </TabsTrigger>
+            )}
+            {allowedTypes.includes('audio') && (
+              <TabsTrigger value="audio">
+                <Mic className="h-4 w-4 mr-2" />
+                Audio
+              </TabsTrigger>
+            )}
+            {allowedTypes.includes('gallery') && (
+              <TabsTrigger value="gallery">
+                <Image className="h-4 w-4 mr-2" />
+                Galleria
+              </TabsTrigger>
+            )}
+          </TabsList>
+          
+          {/* Photo tab */}
+          {allowedTypes.includes('photo') && (
+            <TabsContent value="photo" className="flex flex-col items-center">
+              <div className="relative w-full">
+                <Webcam
+                  audio={false}
+                  ref={webcamRef}
+                  screenshotFormat="image/jpeg"
+                  videoConstraints={{ aspectRatio }}
+                  className="w-full rounded-md"
+                />
+                
+                <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                  <Button 
+                    type="button" 
+                    className="rounded-full w-16 h-16"
+                    onClick={capturePhoto}
+                  >
+                    <Camera className="h-8 w-8" />
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+          )}
+          
+          {/* Video tab */}
+          {allowedTypes.includes('video') && (
+            <TabsContent value="video" className="flex flex-col items-center">
+              <div className="relative w-full">
+                <Webcam
+                  audio={true}
+                  ref={webcamRef}
+                  videoConstraints={{ aspectRatio }}
+                  className="w-full rounded-md"
+                />
+                
+                <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                  {!isRecording ? (
+                    <Button 
+                      type="button" 
+                      variant="destructive"
+                      className="rounded-full w-16 h-16"
+                      onClick={handleStartRecording}
+                    >
+                      <Video className="h-8 w-8" />
+                    </Button>
+                  ) : (
+                    <Button 
+                      type="button" 
+                      variant="destructive"
+                      className="rounded-full w-16 h-16 animate-pulse"
+                      onClick={handleStopRecording}
+                    >
+                      <X className="h-8 w-8" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+          )}
+          
+          {/* Audio tab */}
+          {allowedTypes.includes('audio') && (
+            <TabsContent value="audio" className="flex flex-col items-center p-4">
+              <div className="bg-slate-100 w-full h-48 rounded-md flex flex-col items-center justify-center">
+                <Mic className="h-16 w-16 text-slate-400 mb-4" />
+                {!audioRecording ? (
+                  <Button 
+                    type="button" 
+                    onClick={startAudioRecording}
+                    className="rounded-full"
+                  >
+                    Inizia registrazione
+                  </Button>
+                ) : (
+                  <div className="flex flex-col items-center">
+                    <div className="text-center mb-4">
+                      <p className="text-sm text-red-500">Registrazione in corso...</p>
+                      <div className="flex space-x-1 mt-2">
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></span>
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></span>
+                      </div>
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="destructive"
+                      onClick={stopAudioRecording}
+                      className="rounded-full"
+                    >
+                      Termina registrazione
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          )}
+          
+          {/* Gallery tab */}
+          {allowedTypes.includes('gallery') && (
+            <TabsContent value="gallery" className="flex flex-col items-center">
+              <div className="bg-slate-100 w-full h-60 rounded-md flex items-center justify-center">
+                <div className="text-center">
+                  <Image className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+                  <Button 
+                    type="button" 
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Seleziona file
+                  </Button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    accept={[
+                      allowedTypes.includes('photo') ? 'image/*' : '',
+                      allowedTypes.includes('video') ? 'video/*' : '',
+                      allowedTypes.includes('audio') ? 'audio/*' : ''
+                    ].filter(Boolean).join(',')}
+                    className="hidden"
+                  />
+                </div>
+              </div>
+            </TabsContent>
+          )}
+        </Tabs>
+        
+        <div className="flex justify-between mt-4">
           <Button 
-            variant="ghost" 
-            size="icon" 
+            type="button" 
+            variant="outline" 
             onClick={onClose}
           >
-            <X className="h-5 w-5" />
+            Annulla
           </Button>
         </div>
-        
-        {allowedTypes.length > 1 && (
-          <div className="p-2 flex space-x-2 border-b overflow-x-auto">
-            {allowedTypes.includes('photo') && (
-              <Button 
-                variant={activeType === 'photo' ? 'default' : 'outline'} 
-                onClick={() => setActiveType('photo')}
-                className="whitespace-nowrap"
-              >
-                <Camera className="mr-2 h-4 w-4" /> Foto
-              </Button>
-            )}
-            
-            {allowedTypes.includes('video') && (
-              <Button 
-                variant={activeType === 'video' ? 'default' : 'outline'} 
-                onClick={() => setActiveType('video')}
-                className="whitespace-nowrap"
-              >
-                <Video className="mr-2 h-4 w-4" /> Video
-              </Button>
-            )}
-            
-            {allowedTypes.includes('audio') && (
-              <Button 
-                variant={activeType === 'audio' ? 'default' : 'outline'} 
-                onClick={() => setActiveType('audio')}
-                className="whitespace-nowrap"
-              >
-                <Mic className="mr-2 h-4 w-4" /> Audio
-              </Button>
-            )}
-            
-            {allowedTypes.includes('gallery') && (
-              <Button 
-                variant={activeType === 'gallery' ? 'default' : 'outline'} 
-                onClick={() => setActiveType('gallery')}
-                className="whitespace-nowrap"
-              >
-                <Image className="mr-2 h-4 w-4" /> Galleria
-              </Button>
-            )}
-          </div>
-        )}
-        
-        <div className="p-0 h-80" style={{ aspectRatio: aspectRatio.toString() }}>
-          {renderMediaCaptureContent()}
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
