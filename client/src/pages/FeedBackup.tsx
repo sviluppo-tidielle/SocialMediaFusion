@@ -7,20 +7,8 @@ import { useTab } from '@/hooks/use-tab';
 import { Heart, MessageCircle, Send, MoreHorizontal, Plus, Radio } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import CreatePostModal from '@/components/mobile/CreatePostModal';
 import LiveStreamModal from '@/components/mobile/LiveStreamModal';
-import PostOptionsMenu from '@/components/PostOptionsMenu';
 
 // Mock current user id until auth is implemented
 const CURRENT_USER_ID = 1;
@@ -28,12 +16,8 @@ const CURRENT_USER_ID = 1;
 export default function Feed() {
   const { setActiveTab } = useTab();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
   const [isLiveStreamModalOpen, setIsLiveStreamModalOpen] = useState(false);
-  const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
   
   // Set the active tab when this component mounts
   useEffect(() => {
@@ -42,7 +26,7 @@ export default function Feed() {
   
   // Fetch feed posts
   const { data: posts, isLoading, error } = useQuery<PostWithUser[]>({
-    queryKey: [`/api/feed/posts?userId=${CURRENT_USER_ID}`]
+    queryKey: [`/api/feed/posts?userId=${CURRENT_USER_ID}`],
   });
   
   // Like/unlike post mutations
@@ -53,27 +37,6 @@ export default function Feed() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/feed/posts?userId=${CURRENT_USER_ID}`] });
-    }
-  });
-  
-  // Delete post mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (postId: number) => {
-      return await apiRequest('DELETE', `/api/posts/${postId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/feed/posts?userId=${CURRENT_USER_ID}`] });
-      toast({
-        title: "Post eliminato",
-        description: "Il tuo post è stato eliminato con successo",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante l'eliminazione del post",
-        variant: "destructive",
-      });
     }
   });
   
@@ -91,21 +54,9 @@ export default function Feed() {
     console.log('Share post', postId);
   };
   
-  const handleEditPost = (postId: number) => {
-    setSelectedPostId(postId);
-    setEditModalOpen(true);
-  };
-  
-  const handleDeletePost = (postId: number) => {
-    setSelectedPostId(postId);
-    setDeleteDialogOpen(true);
-  };
-  
-  const confirmDeletePost = () => {
-    if (selectedPostId) {
-      deleteMutation.mutate(selectedPostId);
-      setDeleteDialogOpen(false);
-    }
+  const handlePostOptions = (postId: number) => {
+    // Implement options menu (delete, edit, etc.)
+    console.log('Post options', postId);
   };
   
   if (isLoading) {
@@ -131,9 +82,7 @@ export default function Feed() {
               onLike={handleLikePost}
               onComment={handleCommentPost}
               onShare={handleSharePost}
-              onOptions={(id) => {
-                console.log('Options clicked for post', id);
-              }}
+              onOptions={handlePostOptions}
             />
           ))
         ) : (
@@ -175,27 +124,6 @@ export default function Feed() {
         isOpen={isLiveStreamModalOpen}
         onClose={() => setIsLiveStreamModalOpen(false)}
       />
-      
-      {/* Confirmation dialog for post deletion */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sei sicuro di voler eliminare questo post?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Questa azione non può essere annullata. Il post verrà rimosso permanentemente dalla piattaforma.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={confirmDeletePost}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
@@ -209,7 +137,6 @@ interface PostItemProps {
 }
 
 function PostItem({ post, onLike, onComment, onShare, onOptions }: PostItemProps) {
-  const { toast } = useToast();
   const formatTimestamp = (date: Date | null) => {
     if (!date) return 'Unknown date';
     
@@ -242,20 +169,13 @@ function PostItem({ post, onLike, onComment, onShare, onOptions }: PostItemProps
           <h3 className="font-medium text-sm">{post.user.fullName}</h3>
           <p className="text-xs text-slate-500">{formatTimestamp(post.createdAt)}</p>
         </div>
-        <PostOptionsMenu
-          postId={post.id}
-          isOwner={post.userId === CURRENT_USER_ID}
-          onEdit={onOptions}
-          onDelete={onOptions}
-          onShare={onShare}
-          onCopyLink={(id) => {
-            navigator.clipboard.writeText(`${window.location.origin}/post/${id}`);
-            toast({
-              title: "Link copiato",
-              description: "Il link del post è stato copiato negli appunti",
-            });
-          }}
-        />
+        <button 
+          className="text-slate-500" 
+          onClick={() => onOptions(post.id)}
+          aria-label="Post options"
+        >
+          <MoreHorizontal className="h-5 w-5" />
+        </button>
       </div>
       
       {/* Post Content */}
