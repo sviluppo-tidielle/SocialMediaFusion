@@ -25,16 +25,47 @@ const MediaCapture: React.FC<MediaCaptureProps> = ({
   allowedTypes = ['photo', 'gallery'],
   aspectRatio = 1
 }) => {
-  const [activeTab, setActiveTab] = useState<string>(allowedTypes[0] || 'photo');
+  // Se siamo su un ambiente desktop, fallback preferito è la galleria
+  const defaultTab = 
+    navigator.userAgent.match(/Android|iPhone|iPad|iPod/i) ? 
+    (allowedTypes[0] || 'photo') : 
+    (allowedTypes.includes('gallery') ? 'gallery' : allowedTypes[0]);
+  
+  const [activeTab, setActiveTab] = useState<string>(defaultTab);
   const [isRecording, setIsRecording] = useState(false);
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
   const [audioRecording, setAudioRecording] = useState<boolean>(false);
+  const [cameraAvailable, setCameraAvailable] = useState<boolean>(true);
   const webcamRef = useRef<Webcam>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioRecorderRef = useRef<MediaRecorder | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  
+  // Verifica iniziale della disponibilità della fotocamera
+  useEffect(() => {
+    const checkCameraAvailability = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        setCameraAvailable(videoDevices.length > 0);
+        
+        if (videoDevices.length === 0 && activeTab === 'photo') {
+          console.log('No camera available, switching to gallery tab');
+          setActiveTab(allowedTypes.includes('gallery') ? 'gallery' : allowedTypes[0]);
+        }
+      } catch (err) {
+        console.error('Error checking camera availability:', err);
+        setCameraAvailable(false);
+        if (activeTab === 'photo' || activeTab === 'video') {
+          setActiveTab(allowedTypes.includes('gallery') ? 'gallery' : allowedTypes[0]);
+        }
+      }
+    };
+    
+    checkCameraAvailability();
+  }, [allowedTypes, activeTab]);
 
   // Helper to create a File from a Blob
   const createFileFromBlob = useCallback((blob: Blob, type: string, extension: string) => {
@@ -67,7 +98,21 @@ const MediaCapture: React.FC<MediaCaptureProps> = ({
               variant: 'destructive',
             });
           });
+      } else {
+        console.error('No screenshot available');
+        toast({
+          title: 'Errore',
+          description: 'Fotocamera non disponibile o permessi mancanti.',
+          variant: 'destructive',
+        });
       }
+    } else {
+      console.error('Webcam ref not available');
+      toast({
+        title: 'Errore',
+        description: 'Fotocamera non inizializzata. Prova a ricaricare la pagina.',
+        variant: 'destructive',
+      });
     }
   }, [webcamRef, onCapture, createFileFromBlob, toast]);
 

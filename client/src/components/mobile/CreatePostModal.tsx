@@ -29,6 +29,7 @@ interface FormData {
 const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
   const [media, setMedia] = useState<MediaFile | null>(null);
   const [showMediaCapture, setShowMediaCapture] = useState(false);
+  const [captureType, setCaptureType] = useState<Array<'photo' | 'video' | 'audio' | 'gallery'>>(['photo', 'video', 'audio', 'gallery']);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -40,7 +41,7 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
   
   // Upload media mutation
   const uploadMediaMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
+    mutationFn: async (formData: FormData & { caption?: string }) => {
       const response = await fetch('/api/uploads/post', {
         method: 'POST',
         body: formData as unknown as BodyInit,
@@ -100,7 +101,10 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
       const formData = new FormData();
       formData.append('file', media.file);
       
-      const uploadResult = await uploadMediaMutation.mutateAsync(formData);
+      // Il FormData non ha un campo caption ma lo estendiamo per TypeScript
+      const formDataWithCaption = formData as FormData & { caption?: string };
+      
+      const uploadResult = await uploadMediaMutation.mutateAsync(formDataWithCaption);
       
       // Then create the post with the media URL
       await createPostMutation.mutateAsync({
@@ -141,11 +145,12 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
                   variant="outline"
                   className="flex flex-col items-center justify-center h-24 p-2"
                   onClick={() => {
+                    setCaptureType(['photo', 'video']);
                     setShowMediaCapture(true);
                   }}
                 >
                   <Camera className="h-8 w-8 mb-2" />
-                  <span className="text-xs">Fotocamera</span>
+                  <span className="text-xs">Foto/Video</span>
                 </Button>
                 
                 <Button
@@ -153,11 +158,12 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
                   variant="outline"
                   className="flex flex-col items-center justify-center h-24 p-2"
                   onClick={() => {
+                    setCaptureType(['audio']);
                     setShowMediaCapture(true);
                   }}
                 >
-                  <Video className="h-8 w-8 mb-2" />
-                  <span className="text-xs">Video</span>
+                  <Mic className="h-8 w-8 mb-2" />
+                  <span className="text-xs">Audio</span>
                 </Button>
                 
                 <Button
@@ -165,6 +171,7 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
                   variant="outline"
                   className="flex flex-col items-center justify-center h-24 p-2"
                   onClick={() => {
+                    setCaptureType(['gallery']);
                     setShowMediaCapture(true);
                   }}
                 >
@@ -240,7 +247,7 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
         <MediaCapture
           onCapture={handleMediaCapture}
           onClose={() => setShowMediaCapture(false)}
-          allowedTypes={['photo', 'video', 'audio', 'gallery']}
+          allowedTypes={captureType}
         />
       )}
     </>
