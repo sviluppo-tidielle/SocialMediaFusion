@@ -26,6 +26,7 @@ interface EditPostModalProps {
   initialCaption?: string | null;
   mediaUrl?: string;
   mediaType?: string;
+  isPublic?: boolean;
 }
 
 export default function EditPostModal({
@@ -34,10 +35,12 @@ export default function EditPostModal({
   postId,
   initialCaption = '',
   mediaUrl = '',
-  mediaType = 'image'
+  mediaType = 'image',
+  isPublic = true
 }: EditPostModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [postPrivacy, setPostPrivacy] = useState<boolean>(isPublic);
 
   // Form setup
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
@@ -46,14 +49,15 @@ export default function EditPostModal({
     }
   });
 
-  // Reset form when initialCaption changes
+  // Reset form when initialCaption or isPublic changes
   useEffect(() => {
     reset({ caption: initialCaption || '' });
-  }, [initialCaption, reset]);
+    setPostPrivacy(isPublic);
+  }, [initialCaption, isPublic, reset]);
 
   // Update post mutation
   const updatePostMutation = useMutation({
-    mutationFn: async (data: { caption: string }) => {
+    mutationFn: async (data: { caption: string, isPublic: boolean }) => {
       if (!postId) throw new Error('ID del post non valido');
       
       const response = await apiRequest('PUT', `/api/posts/${postId}`, data);
@@ -82,7 +86,10 @@ export default function EditPostModal({
   });
 
   const onSubmit = async (data: { caption: string }) => {
-    updatePostMutation.mutate(data);
+    updatePostMutation.mutate({ 
+      ...data,
+      isPublic: postPrivacy
+    });
   };
 
   return (
@@ -129,6 +136,24 @@ export default function EditPostModal({
               {errors.caption && (
                 <p className="text-sm text-red-500 mt-1">{errors.caption.message}</p>
               )}
+            </div>
+            
+            <div className="flex items-center justify-between py-2 px-1">
+              <div className="flex items-center gap-2">
+                {postPrivacy ? (
+                  <Globe className="h-5 w-5 text-primary" />
+                ) : (
+                  <Lock className="h-5 w-5 text-orange-500" />
+                )}
+                <Label htmlFor="post-privacy" className="cursor-pointer">
+                  {postPrivacy ? 'Post pubblico' : 'Post privato'}
+                </Label>
+              </div>
+              <Switch
+                id="post-privacy"
+                checked={postPrivacy}
+                onCheckedChange={setPostPrivacy}
+              />
             </div>
           </div>
           

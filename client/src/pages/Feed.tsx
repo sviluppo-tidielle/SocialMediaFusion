@@ -170,6 +170,7 @@ export default function Feed() {
           initialCaption={posts?.find(p => p.id === selectedPostId)?.caption || ''}
           mediaUrl={posts?.find(p => p.id === selectedPostId)?.mediaUrl}
           mediaType={posts?.find(p => p.id === selectedPostId)?.mediaType}
+          isPublic={posts?.find(p => p.id === selectedPostId)?.isPublic ?? true}
         />
       )}
       

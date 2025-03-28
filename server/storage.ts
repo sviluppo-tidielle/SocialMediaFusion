@@ -31,7 +31,7 @@ export interface IStorage {
   getPost(id: number): Promise<Post | undefined>;
   getPostsByUserId(userId: number): Promise<Post[]>;
   getFeedPosts(userId: number): Promise<PostWithUser[]>;
-  updatePost(postId: number, data: { caption?: string | null }): Promise<Post>;
+  updatePost(postId: number, data: { caption?: string | null, isPublic?: boolean | null }): Promise<Post>;
   deletePost(postId: number): Promise<void>;
   likePost(userId: number, postId: number): Promise<void>;
   unlikePost(userId: number, postId: number): Promise<void>;
@@ -381,7 +381,7 @@ export class MemStorage implements IStorage {
     );
   }
   
-  async updatePost(postId: number, data: { caption?: string | null }): Promise<Post> {
+  async updatePost(postId: number, data: { caption?: string | null, isPublic?: boolean | null }): Promise<Post> {
     const post = await this.getPost(postId);
     if (!post) {
       throw new Error("Post non trovato");
@@ -389,7 +389,8 @@ export class MemStorage implements IStorage {
     
     const updatedPost: Post = {
       ...post,
-      caption: data.caption !== undefined ? data.caption : post.caption
+      caption: data.caption !== undefined ? data.caption : post.caption,
+      isPublic: data.isPublic !== undefined ? data.isPublic : post.isPublic
     };
     
     this.postsMap.set(postId, updatedPost);
@@ -1167,7 +1168,7 @@ export class DatabaseStorage implements IStorage {
     return !!like;
   }
   
-  async updatePost(postId: number, data: { caption?: string | null }): Promise<Post> {
+  async updatePost(postId: number, data: { caption?: string | null, isPublic?: boolean | null }): Promise<Post> {
     const [post] = await db
       .select()
       .from(posts)
@@ -1181,7 +1182,8 @@ export class DatabaseStorage implements IStorage {
     const [updatedPost] = await db
       .update(posts)
       .set({
-        caption: data.caption !== undefined ? data.caption : post.caption
+        caption: data.caption !== undefined ? data.caption : post.caption,
+        isPublic: data.isPublic !== undefined ? data.isPublic : post.isPublic
       })
       .where(eq(posts.id, postId))
       .returning();
