@@ -139,44 +139,57 @@ const CreatePostModal = ({ isOpen, onClose }: CreatePostModalProps) => {
           
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {!media ? (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex flex-col items-center justify-center h-24 p-2"
+                  className="flex flex-col items-center justify-center h-24 p-2 border-blue-400 hover:bg-blue-50"
                   onClick={() => {
-                    setCaptureType(['photo', 'video']);
+                    setCaptureType(['photo', 'gallery']);
                     setShowMediaCapture(true);
                   }}
                 >
-                  <Camera className="h-8 w-8 mb-2" />
-                  <span className="text-xs">Foto/Video</span>
+                  <Camera className="h-8 w-8 mb-2 text-blue-500" />
+                  <span className="text-xs">Foto</span>
                 </Button>
                 
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex flex-col items-center justify-center h-24 p-2"
+                  className="flex flex-col items-center justify-center h-24 p-2 border-red-400 hover:bg-red-50"
                   onClick={() => {
-                    setCaptureType(['audio']);
+                    setCaptureType(['video', 'gallery']);
                     setShowMediaCapture(true);
                   }}
                 >
-                  <Mic className="h-8 w-8 mb-2" />
-                  <span className="text-xs">Audio</span>
+                  <Video className="h-8 w-8 mb-2 text-red-500" />
+                  <span className="text-xs">Video</span>
                 </Button>
                 
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex flex-col items-center justify-center h-24 p-2"
+                  className="flex flex-col items-center justify-center h-24 p-2 border-purple-400 hover:bg-purple-50"
                   onClick={() => {
                     setCaptureType(['gallery']);
                     setShowMediaCapture(true);
                   }}
                 >
-                  <Image className="h-8 w-8 mb-2" />
+                  <Image className="h-8 w-8 mb-2 text-purple-500" />
                   <span className="text-xs">Galleria</span>
+                </Button>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex flex-col items-center justify-center h-24 p-2 border-green-400 hover:bg-green-50"
+                  onClick={() => {
+                    setCaptureType(['audio']);
+                    setShowMediaCapture(true);
+                  }}
+                >
+                  <Mic className="h-8 w-8 mb-2 text-green-500" />
+                  <span className="text-xs">Audio</span>
                 </Button>
               </div>
             ) : (

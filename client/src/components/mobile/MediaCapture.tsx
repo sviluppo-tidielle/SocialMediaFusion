@@ -298,61 +298,119 @@ const MediaCapture: React.FC<MediaCaptureProps> = ({
           {/* Photo tab */}
           {allowedTypes.includes('photo') && (
             <TabsContent value="photo" className="flex flex-col items-center">
-              <div className="relative w-full">
-                <Webcam
-                  audio={false}
-                  ref={webcamRef}
-                  screenshotFormat="image/jpeg"
-                  videoConstraints={{ aspectRatio }}
-                  className="w-full rounded-md"
-                />
-                
-                <div className="absolute bottom-4 left-0 right-0 flex justify-center">
-                  <Button 
-                    type="button" 
-                    className="rounded-full w-16 h-16"
-                    onClick={capturePhoto}
-                  >
-                    <Camera className="h-8 w-8" />
-                  </Button>
+              {cameraAvailable ? (
+                <div className="relative w-full">
+                  <Webcam
+                    audio={false}
+                    ref={webcamRef}
+                    screenshotFormat="image/jpeg"
+                    videoConstraints={{ aspectRatio }}
+                    className="w-full rounded-md"
+                    onUserMediaError={(err) => {
+                      console.error('Errore di accesso alla fotocamera:', err);
+                      setCameraAvailable(false);
+                      toast({
+                        title: 'Fotocamera non disponibile',
+                        description: 'Verifica le autorizzazioni o prova con un altro metodo di acquisizione.',
+                        variant: 'destructive'
+                      });
+                    }}
+                  />
+                  
+                  <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                    <Button 
+                      type="button" 
+                      className="rounded-full w-16 h-16"
+                      onClick={capturePhoto}
+                    >
+                      <Camera className="h-8 w-8" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-slate-100 w-full h-60 rounded-md flex flex-col items-center justify-center p-4">
+                  <Camera className="h-16 w-16 text-slate-400 mb-4" />
+                  <p className="text-sm text-slate-500 mb-4 text-center">
+                    La fotocamera non è disponibile. Verifica che il tuo dispositivo abbia una fotocamera e che il browser abbia il permesso di accedervi.
+                  </p>
+                  <p className="text-sm text-slate-500 mb-4 text-center">
+                    Su Windows, verifica nelle impostazioni di privacy che il browser abbia l'autorizzazione ad accedere alla fotocamera.
+                  </p>
+                  {allowedTypes.includes('gallery') && (
+                    <Button 
+                      type="button" 
+                      onClick={() => setActiveTab('gallery')}
+                    >
+                      Usa galleria invece
+                    </Button>
+                  )}
+                </div>
+              )}
             </TabsContent>
           )}
           
           {/* Video tab */}
           {allowedTypes.includes('video') && (
             <TabsContent value="video" className="flex flex-col items-center">
-              <div className="relative w-full">
-                <Webcam
-                  audio={true}
-                  ref={webcamRef}
-                  videoConstraints={{ aspectRatio }}
-                  className="w-full rounded-md"
-                />
-                
-                <div className="absolute bottom-4 left-0 right-0 flex justify-center">
-                  {!isRecording ? (
+              {cameraAvailable ? (
+                <div className="relative w-full">
+                  <Webcam
+                    audio={true}
+                    ref={webcamRef}
+                    videoConstraints={{ aspectRatio }}
+                    className="w-full rounded-md"
+                    onUserMediaError={(err) => {
+                      console.error('Errore di accesso alla fotocamera/microfono:', err);
+                      setCameraAvailable(false);
+                      toast({
+                        title: 'Fotocamera non disponibile',
+                        description: 'Verifica le autorizzazioni o prova con un altro metodo di acquisizione.',
+                        variant: 'destructive'
+                      });
+                    }}
+                  />
+                  
+                  <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                    {!isRecording ? (
+                      <Button 
+                        type="button" 
+                        variant="destructive"
+                        className="rounded-full w-16 h-16"
+                        onClick={handleStartRecording}
+                      >
+                        <Video className="h-8 w-8" />
+                      </Button>
+                    ) : (
+                      <Button 
+                        type="button" 
+                        variant="destructive"
+                        className="rounded-full w-16 h-16 animate-pulse"
+                        onClick={handleStopRecording}
+                      >
+                        <X className="h-8 w-8" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-100 w-full h-60 rounded-md flex flex-col items-center justify-center p-4">
+                  <Video className="h-16 w-16 text-slate-400 mb-4" />
+                  <p className="text-sm text-slate-500 mb-4 text-center">
+                    La fotocamera o il microfono non sono disponibili. Verifica che il tuo dispositivo abbia i permessi necessari.
+                  </p>
+                  <p className="text-sm text-slate-500 mb-4 text-center">
+                    Su Windows, verifica nelle impostazioni di privacy che il browser abbia l'autorizzazione ad accedere alla fotocamera e al microfono.
+                  </p>
+                  {allowedTypes.includes('gallery') && (
                     <Button 
                       type="button" 
-                      variant="destructive"
-                      className="rounded-full w-16 h-16"
-                      onClick={handleStartRecording}
+                      onClick={() => setActiveTab('gallery')}
                     >
-                      <Video className="h-8 w-8" />
-                    </Button>
-                  ) : (
-                    <Button 
-                      type="button" 
-                      variant="destructive"
-                      className="rounded-full w-16 h-16 animate-pulse"
-                      onClick={handleStopRecording}
-                    >
-                      <X className="h-8 w-8" />
+                      Usa galleria invece
                     </Button>
                   )}
                 </div>
-              </div>
+              )}
             </TabsContent>
           )}
           
@@ -399,9 +457,18 @@ const MediaCapture: React.FC<MediaCaptureProps> = ({
               <div className="bg-slate-100 w-full h-60 rounded-md flex items-center justify-center">
                 <div className="text-center">
                   <Image className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+                  <p className="text-sm text-slate-500 mb-4 px-4">
+                    Seleziona una foto, video o file audio dal tuo dispositivo
+                  </p>
                   <Button 
                     type="button" 
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      // Reset l'input file prima di aprirlo per assicurarsi che l'evento change venga sempre attivato
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = '';
+                        fileInputRef.current.click();
+                      }
+                    }}
                   >
                     Seleziona file
                   </Button>
