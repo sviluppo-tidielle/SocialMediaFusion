@@ -143,13 +143,13 @@ export default function Feed() {
       </div>
 
       {/* Live streaming button */}
-      <div className="fixed bottom-24 right-4 z-10">
+      <div className="fixed bottom-32 right-4 z-10">
         <Button 
           className="rounded-full w-14 h-14 shadow-lg bg-red-600 hover:bg-red-700"
           onClick={() => setIsLiveStreamModalOpen(true)}
           aria-label="Inizia una diretta"
         >
-          <Radio className="h-6 w-6" />
+          <Radio className="h-6 w-6 text-white" />
         </Button>
       </div>
       

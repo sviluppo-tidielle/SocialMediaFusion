@@ -5,7 +5,7 @@ import AppHeader from "@/components/AppHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import StoriesCarousel from "@/components/StoriesCarousel";
 import StoryViewer from "@/components/StoryViewer";
-import CreateContentModal from "@/components/CreateContentModal";
+import CreateContentModal from "@/components/mobile/CreatePostModal";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -87,12 +87,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {isCreateModalOpen && (
-        <CreateContentModal
-          userId={user.id}
-          onClose={() => setIsCreateModalOpen(false)}
-        />
-      )}
+      <CreateContentModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+      />
     </div>
   );
 }
